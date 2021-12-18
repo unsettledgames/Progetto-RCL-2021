@@ -28,28 +28,8 @@ class WinsomeClient {
 
         while (!clientChannel.finishConnect()) {}
 
-        ByteBuffer buffer = ByteBuffer.allocate(toSend.getBytes().length + 4);
-        // Send the buffer size
-        buffer.putInt(toSend.getBytes().length);
-        buffer.put(toSend.getBytes());
-        buffer.flip();
-        clientChannel.write(buffer);
+        ComUtility.send(toSend, clientChannel);
 
-        // Receive the echoed string
-        buffer.flip();
-        buffer.clear();
-        clientChannel.read(buffer);
-
-        // Get the error message
-        int code = buffer.getInt();
-        System.out.println("Error code: " + code);
-
-        // Send the json
-        buffer.put(toSend.getBytes());
-        buffer.flip();
-        clientChannel.write(buffer);
-
-        System.out.println(new String(buffer.array()));
         clientChannel.close();
     }
 }
