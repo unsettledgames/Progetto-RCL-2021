@@ -1,11 +1,6 @@
-import netscape.javascript.JSObject;
 import org.json.JSONObject;
-import requests.SignupRequest;
-
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.net.*;
-import java.nio.*;
 import java.nio.channels.*;
 
 class WinsomeClient {

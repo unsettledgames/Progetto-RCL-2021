@@ -1,9 +1,9 @@
 # Brainstorming
 
 ## Server
-- Client si connette
-- Si instaura una connessione TCP
-  - Nio
+- ~~Client si connette~~
+- ~~Si instaura una connessione TCP~~
+  - ~~Nio~~
 - I client inviano delle richieste
 - Ogni richiesta è assegnata a un thread di un pool
   - Il thread elabora la risposta e la invia al client

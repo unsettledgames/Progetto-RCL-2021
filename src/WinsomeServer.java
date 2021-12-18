@@ -1,38 +1,80 @@
+import exceptions.ConfigException;
 import org.json.JSONObject;
-import requests.LoginRequest;
-import requests.Request;
-import requests.SignupRequest;
 
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.ObjectInputStream;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.*;
+import java.util.concurrent.*;
 
-class WinsomeServer {
-    public static final String toAppend = " echoed by server";
-    private static final int port = 6666;
+class WinsomeServer implements Runnable {
+    private int port;
+    private String address;
 
-    private HashMap<SelectionKey, List<JSONObject>> clientRequests;
-    private HashMap<SelectionKey, List<JSONObject>> clientResponse;
+    private Selector selector;
+    private ServerSocketChannel serverSocket;
 
-    public static void main(String[] args) throws IOException {
-        HashMap<SelectionKey, String> requests = new HashMap<>();
-        Selector selector = Selector.open();
-        ServerSocketChannel server = ServerSocketChannel.open();
+    private ExecutorService threadPool;
+    private BlockingQueue<ClientRequest> clientRequests;
+    private HashMap<SelectionKey, LinkedBlockingQueue<JSONObject>> clientResponses;
+
+    public WinsomeServer() {
+        clientRequests = new LinkedBlockingQueue<>();
+        clientResponses = new HashMap<>();
+        // TODO: politica di rifiuto custom
+        threadPool = new ThreadPoolExecutor(5, 20, 1000,
+                TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+    }
+
+    public void config(String configFile) {
+        try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
+            String line;
+
+            while ((line = br.readLine()) != null) {
+                line = line.strip();
+                if (!line.startsWith("#") && !line.equals("")) {
+                    if (line.startsWith("SERVER_ADDRESS"))
+                        this.address = line.split(" ")[1].strip();
+                    else if (line.startsWith("TCP_PORT"))
+                        this.port = Integer.parseInt(line.split(" ")[1].strip());
+                    else
+                        throw new ConfigException("Parametro inaspettato " + line);
+                }
+            }
+            System.out.println("Configurazione server avvenuta con successo");
+        } catch (FileNotFoundException e) {
+            throw new ConfigException("Nome del file errato");
+        } catch (IOException e) {
+            throw new ConfigException("Errore di lettura del file");
+        }
+    }
+
+    public void open() throws IOException {
         InetSocketAddress address = new InetSocketAddress(port);
+        selector = Selector.open();
+        serverSocket = ServerSocketChannel.open();
 
-        server.bind(address);
-        server.configureBlocking(false);
-        server.register(selector, SelectionKey.OP_ACCEPT);
+        serverSocket.bind(address);
+        serverSocket.configureBlocking(false);
+        serverSocket.register(selector, SelectionKey.OP_ACCEPT);
 
+        System.out.println("Server in ascolto...");
+    }
+
+    @Override
+    public void run() {
         while (true) {
-            selector.select();
+            try {
+                selector.select();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
             Set<SelectionKey> readyKeys = selector.selectedKeys();
             Iterator<SelectionKey> keyIt = readyKeys.iterator();
@@ -43,7 +85,7 @@ class WinsomeServer {
 
                 try {
                     if (currKey.isAcceptable()) {
-                        SocketChannel client = server.accept();
+                        SocketChannel client = serverSocket.accept();
                         System.out.println("Accepted connection from " + client.getLocalAddress());
 
                         client.configureBlocking(false);
@@ -59,12 +101,19 @@ class WinsomeServer {
                         }
                         else {
                             JSONObject json = new JSONObject(content);
-                            System.out.println("Password: " + json.getString("password"));
-                            System.out.println("Request content: " + content);
+                            boolean inserted = false;
+
+                            // Prova a inserire nella coda finché non ci riesci
+                            while (!inserted) {
+                                try {
+                                    clientRequests.put(new ClientRequest(currKey, json));
+                                    inserted = true;
+                                } catch (InterruptedException e) {}
+                            }
                         }
 
                         // Save it in the request queue along with the client who sent it
-                    } else if (currKey.isWritable() && requests.get(currKey) != null) {
+                    } else if (currKey.isWritable()) {
                         // Send the response if it's ready
                     }
                 }
@@ -74,5 +123,20 @@ class WinsomeServer {
                 }
             }
         }
+    }
+
+    public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            throw new ConfigException(" File non indicato");
+        }
+        // Crea il server
+        WinsomeServer server = new WinsomeServer();
+
+        // Configuralo e aprilo secondo i parametri del file
+        server.config(args[0]);
+        server.open();
+
+        // Inizia la routine di gestione delle connessioni
+        new Thread(server).start();
     }
 }

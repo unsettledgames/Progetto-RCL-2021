@@ -1,1 +1,5 @@
-#
+# Indirizzo del server
+SERVER_ADDRESS: 127.0.0.1
+
+# Porta del server
+TCP_PORT: 6666
