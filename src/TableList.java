@@ -264,7 +264,6 @@ public class TableList {
             line.append(CORNER_BR);
             System.out.println(line);
         }
-
     }
 
     private String gc(String[] src) {

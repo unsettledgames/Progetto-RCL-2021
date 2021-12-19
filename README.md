@@ -96,9 +96,9 @@
 
 ## Roadmap
 - ~~Stampa post lato client~~
-- Configurazione server
+- ~~Configurazione server~~
 - ~~Definizione dei pacchetti di richiesta / risposta~~
-- Signup, login e logout
+- Signup (RMI), login e logout
 - Follower e following
 - Creazione post, visualizzazione blog e feed
 - Persistenza

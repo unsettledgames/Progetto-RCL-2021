@@ -10,26 +10,33 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
 import java.util.concurrent.*;
 
-class WinsomeServer implements Runnable {
+class WinsomeServer implements Runnable, IRemoteServer {
+    // Parametri di rete e connessione
     private int port;
     private String address;
+    private String rmiHost;
+    private int rmiPort;
 
+    // Infrastruttura del server
     private Selector selector;
     private ServerSocketChannel serverSocket;
-
     private ExecutorService threadPool;
-    private BlockingQueue<ClientRequest> clientRequests;
-    private HashMap<SelectionKey, LinkedBlockingQueue<JSONObject>> clientResponses;
+
+    // Dati del social
+    private HashMap<String, User> users;
 
     public WinsomeServer() {
-        clientRequests = new LinkedBlockingQueue<>();
-        clientResponses = new HashMap<>();
+        users = new HashMap<>();
         // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
-                TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+                TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
     }
 
     public void config(String configFile) {
@@ -43,6 +50,10 @@ class WinsomeServer implements Runnable {
                         this.address = line.split(" ")[1].strip();
                     else if (line.startsWith("TCP_PORT"))
                         this.port = Integer.parseInt(line.split(" ")[1].strip());
+                    else if (line.startsWith("REG_HOST"))
+                        this.rmiHost = line.split(" ")[1].strip();
+                    else if (line.startsWith("REG_PORT"))
+                        this.rmiPort = Integer.parseInt(line.split(" ")[1].strip());
                     else
                         throw new ConfigException("Parametro inaspettato " + line);
                 }
@@ -86,43 +97,50 @@ class WinsomeServer implements Runnable {
                 try {
                     if (currKey.isAcceptable()) {
                         SocketChannel client = serverSocket.accept();
-                        System.out.println("Accepted connection from " + client.getLocalAddress());
+                        System.out.println("Accettata connessione da: " + client.getLocalAddress());
 
                         client.configureBlocking(false);
                         client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-                    } else if (currKey.isReadable() && currKey.isValid()) {
+                    }
+                    else if (currKey.isReadable() && currKey.isValid()) {
                         // Get the current channel
                         SocketChannel channel = (SocketChannel) currKey.channel();
                         String content = ComUtility.receive(channel);
 
                         if (content.equals("")) {
                             currKey.cancel();
-                            System.out.println("Client disconnected");
+                            System.out.println("Client disconnesso");
                         }
                         else {
+                            // Ricrea l'oggetto json
                             JSONObject json = new JSONObject(content);
-                            boolean inserted = false;
-
-                            // Prova a inserire nella coda finché non ci riesci
-                            while (!inserted) {
-                                try {
-                                    clientRequests.put(new ClientRequest(currKey, json));
-                                    inserted = true;
-                                } catch (InterruptedException e) {}
-                            }
+                            // Avvia l'esecuzione della richiesta ricevuta
+                            this.threadPool.submit(new WinsomeWorker(this, new ClientRequest(currKey, json)));
                         }
-
-                        // Save it in the request queue along with the client who sent it
-                    } else if (currKey.isWritable()) {
-                        // Send the response if it's ready
                     }
                 }
                 catch (IOException e) {
                     currKey.cancel();
-                    System.out.println("Closed connection");
+                    System.out.println("Connessione chiusa");
                 }
             }
         }
+    }
+
+    public void enableRMI() throws RemoteException {
+        WinsomeServer server = this;
+        IRemoteServer stub = (IRemoteServer) UnicastRemoteObject.exportObject(server, 0);
+
+        LocateRegistry.createRegistry(rmiPort);
+        Registry r = LocateRegistry.getRegistry(rmiPort);
+        r.rebind("WINSOME_SIGNUP", stub);
+
+        System.out.println("Servizio di registrazione attivo");
+    }
+
+    @Override
+    public int signup(String username, String password, String[] tags) throws RemoteException {
+        return 0;
     }
 
     public static void main(String[] args) throws IOException {
@@ -135,8 +153,11 @@ class WinsomeServer implements Runnable {
         // Configuralo e aprilo secondo i parametri del file
         server.config(args[0]);
         server.open();
+        server.enableRMI();
 
         // Inizia la routine di gestione delle connessioni
         new Thread(server).start();
     }
+
+
 }
