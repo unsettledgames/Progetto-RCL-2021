@@ -1,8 +1,17 @@
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 public class ComUtility {
+    public static void sendError(int code, String message, SocketChannel channel) throws IOException {
+        JSONObject response = new JSONObject();
+        response.put("errCode", code);
+        response.put("errMsg", message);
+        send(response.toString(), channel);
+    }
+
     public static void send(String toSend, SocketChannel channel) throws IOException {
         ByteBuffer buffer = ByteBuffer.allocate(toSend.getBytes().length + 4);
         // Send the buffer size
@@ -23,7 +32,6 @@ public class ComUtility {
         reader.flip();
         int size = reader.getInt();
 
-        System.out.println("Content size: " + size);
         // Read the actual request
         reader = ByteBuffer.allocate(size);
         channel.read(reader);

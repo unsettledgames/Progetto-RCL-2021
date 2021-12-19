@@ -24,13 +24,18 @@ public class ClientError {
      *  OP = 0 (SIGNUP):
      *      0:  Successo
      *      -1: Username già esistente
+     *  OP = 1 (LOGIN):
+     *      0:  Successo
+     *      -1: Utente già loggato
+     *      -2: Password errata
+     *      -3: Nome utente errato
      *
      * @param error
      * @param op
      */
     private static int printError(int error, int op) {
         switch (op) {
-            case 0:
+            case OpCodes.SIGNUP:
                 switch (error) {
                     case 0:
                         return 0;
@@ -39,6 +44,23 @@ public class ClientError {
                         break;
                     default:
                         System.err.println("Errore di registrazione sconosciuto");
+                        break;
+                }
+                break;
+            case OpCodes.LOGIN:
+                switch (error) {
+                    case 0:
+                        return 0;
+                    case -1:
+                        System.err.println("Errore di login: utente già loggato");
+                        break;
+                    case -2:
+                        System.err.println("Errore di login: password errata");
+                        break;
+                    case -3:
+                        System.err.println("Errore di login: utente non esistente");
+                        break;
+                    default:
                         break;
                 }
                 break;

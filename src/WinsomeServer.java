@@ -1,21 +1,15 @@
 import exceptions.ConfigException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
+import java.io.*;
+import java.nio.channels.*;
+import java.rmi.registry.*;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
 import java.util.concurrent.*;
+import java.net.InetSocketAddress;
+import java.rmi.*;
+
 
 class WinsomeServer implements Runnable, IRemoteServer {
     // Parametri di rete e connessione
@@ -31,12 +25,26 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
     // Dati del social
     private HashMap<String, User> users;
+    private List<SelectionKey> activeSessions;
 
     public WinsomeServer() {
         users = new HashMap<>();
+        activeSessions = new ArrayList<>();
+
         // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
                 TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+    }
+
+    public void addSession(SelectionKey client) {
+        activeSessions.add(client);
+    }
+
+    public boolean isInSession(SelectionKey u) {
+        if (activeSessions.contains(u)) {
+            return true;
+        }
+        return false;
     }
 
     public void config(String configFile) {
@@ -108,6 +116,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
                         String content = ComUtility.receive(channel);
 
                         if (content.equals("")) {
+                            activeSessions.remove(currKey);
                             currKey.cancel();
                             System.out.println("Client disconnesso");
                         }
@@ -140,7 +149,17 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
     @Override
     public int signup(String username, String password, String[] tags) throws RemoteException {
+        if (users.containsKey(username)) {
+            return -1;
+        }
+        User toAdd = new User(username, password, tags);
+        users.put(username, toAdd);
+
         return 0;
+    }
+
+    public User getUser(String name) {
+        return users.get(name);
     }
 
     public static void main(String[] args) throws IOException {

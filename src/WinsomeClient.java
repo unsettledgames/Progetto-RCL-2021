@@ -5,20 +5,51 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.*;
 import java.nio.channels.*;
+import java.nio.charset.StandardCharsets;
 import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Base64;
 
 class WinsomeClient {
     private IRemoteServer signupObject;
+    private SocketChannel socket;
 
     public WinsomeClient() throws RemoteException, NotBoundException {
         Registry r = LocateRegistry.getRegistry(6667);
         Remote ro = r.lookup("WINSOME_SIGNUP");
         signupObject = (IRemoteServer) ro;
+    }
+
+    public void connect() throws IOException {
+        // Connect to the server, prepare the buffer
+        SocketAddress address = new InetSocketAddress("localhost", 6666);
+        socket = SocketChannel.open(address);
+
+        while (!socket.finishConnect()) {}
+    }
+
+    public void login(String comm) throws NoSuchAlgorithmException, IOException {
+        String[] args = getStringArgs(comm, 2);
+        if (args != null) {
+            JSONObject req = new JSONObject();
+            req.put("op", OpCodes.LOGIN);
+            req.put("username", args[1]);
+            req.put("password", Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(args[2].getBytes(StandardCharsets.UTF_8))));
+            ComUtility.send(req.toString(), socket);
+
+            JSONObject response = new JSONObject(ComUtility.receive(socket));
+            ClientError.handleError("Login avvenuto con successo. Benvenuto " + args[1],
+                    response.getInt("errCode"), OpCodes.LOGIN);
+        }
+        else {
+            System.err.println("Errore di login: troppi pochi parametri");
+        }
     }
 
     public void signup(String comm) {
@@ -30,14 +61,21 @@ class WinsomeClient {
             else {
                 try {
                     String[] tags = Arrays.copyOfRange(args, 3, args.length);
-                    int err = signupObject.signup(args[1], args[2], tags);
+                    String password = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(args[3].getBytes(StandardCharsets.UTF_8)));
 
+                    String asteriks = "";
+                    for (int i=0; i<password.length(); i++)
+                        asteriks += "*";
+
+                    int err = signupObject.signup(args[1], password, tags);
                     ClientError.handleError("Registrazione avvenuta con successo. Riepilogo:",
                             new TableList(3, "Username", "Password", "Tags").addRow(args[1],
-                            args[2], Arrays.toString(tags)).withUnicode(true), err, 0);
+                            asteriks, Arrays.toString(tags)).withUnicode(true), err, 0);
                 }
                 catch (RemoteException e) {
                     System.err.println("Errore di rete: impossibile completare la registrazione");
+                } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -46,8 +84,8 @@ class WinsomeClient {
         }
     }
 
-    public void login(String comm) {
-
+    public void closeConnection() throws IOException {
+        socket.close();
     }
 
     private String[] getStringArgs(String comm, int minExpected) {
@@ -57,29 +95,23 @@ class WinsomeClient {
         return null;
     }
 
-    public static void main(String[] args) throws IOException, NotBoundException {
-        // Crea il client
+    public static void main(String[] args) throws IOException, NotBoundException, NoSuchAlgorithmException {
+        // Crea il client e connettilo al server
         WinsomeClient client = new WinsomeClient();
+        client.connect();
         // Lettore dei comandi dell'utente
         BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
         // Ultimo comando inserito dall'utente
         String currCommand = "";
 
-        /*TableList ta = new TableList(4, "sas", "sus", "sos", "sis").withUnicode(true);
-        ta.addRow("WOW", "NICE", "69420", "POGGERS");
-        ta.print();*/
-
-        // Connect to the server, prepare the buffer
-        SocketAddress address = new InetSocketAddress("localhost", 6666);
-        SocketChannel clientChannel = SocketChannel.open(address);
-
-        while (!clientChannel.finishConnect()) {}
-
+        // Finché l'utente non decide di uscire, leggi un comando alla volta ed eseguilo
         while (!currCommand.equals("quit")) {
+            // Leggi il comando
             currCommand = reader.readLine();
 
+            // Richiedi operazioni diverse in base al comando
             switch (currCommand.split(" ")[0]) {
-                case "signup":
+                case "register":
                     client.signup(currCommand);
                     break;
                 case "login":
@@ -92,6 +124,6 @@ class WinsomeClient {
         ComUtility.send(toSend, clientChannel);
         System.out.println(client.signupObject.signup("Fintaman", "Franco", new String[5]));
         */
-        clientChannel.close();
+        client.closeConnection();
     }
 }

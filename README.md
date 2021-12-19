@@ -1,12 +1,6 @@
 # Progetto-RCL-2021
 
 ## TODO
-- Signup
-    - Signup procedure
-    - Ask for username
-    - Ask for password, hash and store password
-    - Ask for tags
-
 
 - Login
     - Login procedure
