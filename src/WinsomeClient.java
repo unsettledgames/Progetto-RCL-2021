@@ -1,3 +1,5 @@
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -15,7 +17,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 class WinsomeClient {
     // Dati di connessione
@@ -112,14 +116,21 @@ class WinsomeClient {
             if (reply.getInt("errCode") == 0)
                 currUsername = null;
         }
+        else {
+            System.err.println("Errore di logout: utente non loggato");
+        }
     }
 
 
     public void list(String comm) throws IOException {
+        TableList output;
         String[] args = getStringArgs(comm, 1);
-        List<String> names;
+
         JSONObject request = new JSONObject();
         JSONObject reply;
+        Gson gson = new Gson();
+
+        request.put("user", currUsername);
 
         if (args != null) {
             switch (args[1]) {
@@ -127,6 +138,19 @@ class WinsomeClient {
                     request.put("op", OpCodes.LIST_USERS);
                     ComUtility.send(request.toString(), socket);
                     reply = new JSONObject(ComUtility.receive(socket));
+
+                    if (ClientError.handleError("Lista degli utenti con cui condividi degli interessi: ",
+                            reply.getInt("errCode"), reply.getString("errMsg")) == 0) {
+                        HashMap<String, String[]> names = new Gson().fromJson(reply.getString("items"),
+                                new TypeToken<HashMap<String, String[]>>(){}.getType());
+                        output = new TableList("Utente", "Interessi in comune").withUnicode(true);
+
+                        for (String name : names.keySet())
+                            output.addRow(name, Arrays.toString(names.get(name)));
+                        output.print();
+                    }
+                    else
+                        return;
                     break;
                 case "followers":
                     break;

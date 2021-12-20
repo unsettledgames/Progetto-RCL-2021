@@ -14,21 +14,27 @@
 
 public class ClientError {
 
-    public static void handleError(String successPhrase, int error, String message) {
+    public static int handleError(String successPhrase, int error, String message) {
         if (ClientError.printError(error, message) == 0) {
             System.out.println(successPhrase);
+            return 0;
         }
+        return -1;
     }
-    public static void handleError(TableList toPrint, int error, String message) {
+    public static int handleError(TableList toPrint, int error, String message) {
         if (ClientError.printError(error, message) == 0) {
             toPrint.print();
+            return 0;
         }
+        return -1;
     }
-    public static void handleError(String successPhrase, TableList toPrint, int error, String message) {
+    public static int handleError(String successPhrase, TableList toPrint, int error, String message) {
         if (ClientError.printError(error, message) == 0) {
             System.out.println(successPhrase);
             toPrint.print();
+            return 0;
         }
+        return -1;
     }
 
 

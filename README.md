@@ -3,8 +3,7 @@
 ## TODO
 
 - User operations
-  - Follow user (given its id = hash(username))
-  - Possible followers list: return list of users with which the user shares at least a tag
+  - Follow user (given its id = username)
   - Show followings (so you can unfollow them)
   - Create text posts
   - See feed:
@@ -26,7 +25,6 @@
 
 
 - Server
-  - listUsers() lista di utenti che hanno almeno un tag in comune con quelli dell'utente. Magari mostrarne 10 alla volta?
   - listFollowers() lista dei followers
     - Lista dei followers mantenuta localmente e aggiornata tramite notifiche
   - listFollowing() lista dei following
@@ -54,7 +52,6 @@
   - getWalletBitcoin(): si attacca a random.org per generare il tasso di cambio e convertire la valuta
 
 - Client
-  - list users
   - list followers
   - list following
   - follow <username>

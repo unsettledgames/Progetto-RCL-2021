@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ServerPersistence extends Thread {
     private long updateRateMillis;
@@ -28,7 +29,7 @@ public class ServerPersistence extends Thread {
             Gson gson = new Gson();
 
             // Carica utenti
-            Type type = new TypeToken<HashMap<String, User>>(){}.getType();
+            Type type = new TypeToken<ConcurrentHashMap<String, User>>(){}.getType();
             toLoad.setUsers(gson.fromJson(json.getString("users"), type));
         }
         catch (NoSuchFileException e) {

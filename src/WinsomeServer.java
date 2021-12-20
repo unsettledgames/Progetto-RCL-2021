@@ -26,10 +26,10 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
     // Dati del social
     private HashMap<String, SelectionKey> activeSessions;
-    private HashMap<String, User> users;
+    private ConcurrentHashMap<String, User> users;
 
     public WinsomeServer() {
-        users = new HashMap<>();
+        users = new ConcurrentHashMap<>();
         activeSessions = new HashMap<>();
 
         // TODO: politica di rifiuto custom
@@ -41,10 +41,10 @@ class WinsomeServer implements Runnable, IRemoteServer {
         activeSessions.put(name, client);
     }
     public void endSession(String name) {activeSessions.remove(name);}
-    public void endSession(SelectionKey client){
+    public void endSession(SelectionKey client) {
         for (String key : activeSessions.keySet()) {
             if (activeSessions.get(key).equals(client)) {
-                activeSessions.remove(client);
+                activeSessions.remove(key);
                 return;
             }
         }
@@ -139,6 +139,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
                     }
                 }
                 catch (IOException e) {
+                    endSession(currKey);
                     currKey.cancel();
                     System.out.println("Connessione chiusa");
                 }
@@ -177,11 +178,11 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public User getUser(String name) {
         return users.get(name);
     }
-    public HashMap<String, User> getUsers() {
+    public ConcurrentHashMap<String, User> getUsers() {
         return users;
     }
 
-    public void setUsers(HashMap<String, User> users) {
+    public void setUsers(ConcurrentHashMap<String, User> users) {
         this.users = users;
     }
 
