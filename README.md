@@ -2,15 +2,8 @@
 
 ## TODO
 
-- Login
-    - Login procedure
-    - Ask for username
-    - Ask for password (print asterisks), generate hash and compare
-
-
 - User operations
   - Follow user (given its id = hash(username))
-  - Logout
   - Possible followers list: return list of users with which the user shares at least a tag
   - Show followings (so you can unfollow them)
   - Create text posts
@@ -33,15 +26,6 @@
 
 
 - Server
-  - register(username, password, tags)
-    - Username univoco
-    - Massimo 5 tag
-    - Errore se utente già presente, password vuota
-  - login(username, password)
-    - Errore se password errata, utente già loggato
-    - Quando ci si logga, il server invia le specifiche della multicast su cui ascoltare le notifiche
-  - logout(username)
-    - Errore se utente non loggato
   - listUsers() lista di utenti che hanno almeno un tag in comune con quelli dell'utente. Magari mostrarne 10 alla volta?
   - listFollowers() lista dei followers
     - Lista dei followers mantenuta localmente e aggiornata tramite notifiche
@@ -70,9 +54,6 @@
   - getWalletBitcoin(): si attacca a random.org per generare il tasso di cambio e convertire la valuta
 
 - Client
-  - register <username> <password> <tag1,[tag2,tag3,tag4,tag5]>
-  - login <username> <password>
-  - logout
   - list users
   - list followers
   - list following
@@ -89,11 +70,7 @@
   - wallet
 
 ## Roadmap
-- ~~Stampa post lato client~~
-- ~~Configurazione server~~
-- ~~Definizione dei pacchetti di richiesta / risposta~~
-- Signup (RMI), login e logout
+- Persistenza
 - Follower e following
 - Creazione post, visualizzazione blog e feed
-- Persistenza
 - Notifiche

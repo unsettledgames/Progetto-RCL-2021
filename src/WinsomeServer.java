@@ -1,3 +1,4 @@
+import com.google.gson.Gson;
 import exceptions.ConfigException;
 import org.json.JSONObject;
 
@@ -168,6 +169,13 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public User getUser(String name) {
         return users.get(name);
     }
+    public HashMap<String, User> getUsers() {
+        return users;
+    }
+
+    public void setUsers(HashMap<String, User> users) {
+        this.users = users;
+    }
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
@@ -181,9 +189,12 @@ class WinsomeServer implements Runnable, IRemoteServer {
         server.open();
         server.enableRMI();
 
+        // Carica il server con i dati salvati in precedenza se ce ne sono
+        ServerPersistence.loadServer("data.json", server);
+
         // Inizia la routine di gestione delle connessioni
         new Thread(server).start();
+        // Inizia la routine di salvataggio dei dati
+        new ServerPersistence(server, "data.json", 5000).start();
     }
-
-
 }
