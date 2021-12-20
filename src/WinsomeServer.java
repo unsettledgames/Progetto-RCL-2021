@@ -27,9 +27,13 @@ class WinsomeServer implements Runnable, IRemoteServer {
     // Dati del social
     private HashMap<String, SelectionKey> activeSessions;
     private ConcurrentHashMap<String, User> users;
+    private ConcurrentHashMap<String, List<String>> followers;
+    private ConcurrentHashMap<String, List<String>> following;
 
     public WinsomeServer() {
         users = new ConcurrentHashMap<>();
+        followers = new ConcurrentHashMap<>();
+        following = new ConcurrentHashMap<>();
         activeSessions = new HashMap<>();
 
         // TODO: politica di rifiuto custom
@@ -40,6 +44,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public void addSession(String name, SelectionKey client) {
         activeSessions.put(name, client);
     }
+
     public void endSession(String name) {activeSessions.remove(name);}
     public void endSession(SelectionKey client) {
         for (String key : activeSessions.keySet()) {
@@ -181,9 +186,17 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public ConcurrentHashMap<String, User> getUsers() {
         return users;
     }
+    public ConcurrentHashMap<String, List<String>> getFollowers() {return followers;}
+    public ConcurrentHashMap<String, List<String>> getFollowing() {return following;}
 
     public void setUsers(ConcurrentHashMap<String, User> users) {
         this.users = users;
+    }
+    public void setFollowers(ConcurrentHashMap<String, List<String>> followers) {
+        this.followers = followers;
+    }
+    public void setFollowing(ConcurrentHashMap<String, List<String>> following) {
+        this.following = following;
     }
 
     public static void main(String[] args) throws IOException {

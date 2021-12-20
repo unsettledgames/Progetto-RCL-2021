@@ -10,6 +10,9 @@
  *      -3: Nome utente errato
  *  OP = 2 (LOGOUT):
  *      -1: Utente non loggato
+ *  OP = 4 (FOLLOW):
+ *      -1: Utente già seguito
+ *      -2: Utente non esistente
  */
 
 public class ClientError {

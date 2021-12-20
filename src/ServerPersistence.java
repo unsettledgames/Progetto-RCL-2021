@@ -1,5 +1,6 @@
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.*;
@@ -10,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ServerPersistence extends Thread {
@@ -30,10 +32,21 @@ public class ServerPersistence extends Thread {
 
             // Carica utenti
             Type type = new TypeToken<ConcurrentHashMap<String, User>>(){}.getType();
-            toLoad.setUsers(gson.fromJson(json.getString("users"), type));
+            if (json.has("users"))
+                toLoad.setUsers(gson.fromJson(json.getString("users"), type));
+
+            // Carica following e followers
+            type = new TypeToken<ConcurrentHashMap<String, List<String>>>(){}.getType();
+            if (json.has("following"))
+                toLoad.setFollowing(gson.fromJson(json.getString("following"), type));
+            if (json.has("followers"))
+                toLoad.setFollowers(gson.fromJson(json.getString("followers"), type));
         }
         catch (NoSuchFileException e) {
-            System.out.println("File di persistenza non trovato, il server verrà caricato senza dati precedenti.");
+            System.err.println("File di persistenza non trovato, il server verrà caricato senza dati precedenti.");
+        }
+        catch (JSONException e) {
+            System.err.println("File di persistenza corrotto, il server verrà caricato con informazioni parziali.");
         }
     }
 
@@ -45,6 +58,8 @@ public class ServerPersistence extends Thread {
 
             // Serializza oggetti principali
             json.put("users", gson.toJson(server.getUsers()));
+            json.put("followers", gson.toJson(server.getFollowers()));
+            json.put("following", gson.toJson(server.getFollowing()));
 
             // Salva su file
             try (FileWriter writer = new FileWriter(fileName)){

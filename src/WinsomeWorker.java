@@ -11,10 +11,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class WinsomeWorker implements Runnable {
     private ClientRequest request;
     private WinsomeServer server;
+    private SocketChannel socket;
 
     public WinsomeWorker(WinsomeServer server, ClientRequest request) {
         this.request = request;
         this.server = server;
+        this.socket = (SocketChannel) request.getKey().channel();
     }
 
     public void login(String user, String pass) throws IOException {
@@ -24,16 +26,16 @@ public class WinsomeWorker implements Runnable {
             if (!server.isInSession(user)) {
                 if (u.getPassword().equals(pass)) {
                     server.addSession(user, request.getKey());
-                    ComUtility.sendAck((SocketChannel) request.getKey().channel());
+                    ComUtility.sendAck(socket);
                 }
                 else
-                    ComUtility.sendError(-2, "Password errata", (SocketChannel)request.getKey().channel());
+                    ComUtility.sendError(-2, "Password errata", socket);
             }
             else
-                ComUtility.sendError(-1, "Utente già loggato", (SocketChannel)request.getKey().channel());
+                ComUtility.sendError(-1, "Utente già loggato", socket);
         }
         else
-            ComUtility.sendError(-3, "Utente non esistente", (SocketChannel)request.getKey().channel());
+            ComUtility.sendError(-3, "Utente non esistente", socket);
     }
 
     public void logout() throws IOException {
@@ -41,10 +43,10 @@ public class WinsomeWorker implements Runnable {
 
         if (server.isInSession(user)) {
             server.endSession(user);
-            ComUtility.sendAck((SocketChannel) request.getKey().channel());
+            ComUtility.sendAck(socket);
         }
         else
-            ComUtility.sendError(-1, "Utente non loggato", (SocketChannel) request.getKey().channel());
+            ComUtility.sendError(-1, "Utente non loggato", socket);
     }
 
 
@@ -79,7 +81,48 @@ public class WinsomeWorker implements Runnable {
         json.put("errCode", 0);
         json.put("errMsg", "OK");
         json.put("items", gson.toJson(ret));
-        ComUtility.send(json.toString(), (SocketChannel) request.getKey().channel());
+        ComUtility.send(json.toString(), socket);
+    }
+
+
+    public synchronized void follow() throws IOException {
+        JSONObject reply = new JSONObject();
+        String toFollow = request.getJson().getString("toFollow");
+        String follower = request.getJson().getString("user");
+
+        if (!server.getUsers().containsKey(toFollow)) {
+            reply.put("errCode", -2);
+            reply.put("errMsg", "L'utente da seguire non esiste");
+            ComUtility.send(reply.toString(), socket);
+        }
+        else {
+            ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
+            if (!followers.containsKey(toFollow)) {
+                followers.put(toFollow, new ArrayList<>());
+            }
+            // Se la condizione è verificata, il client sta già seguendo l'utente
+            if (followers.get(toFollow).contains(follower)) {
+                reply.put("errCode", -1);
+                reply.put("errMsg", "Stai gia' seguendo questo utente");
+                ComUtility.send(reply.toString(), socket);
+                return;
+            }
+            // Altrimenti posso continuare a impostare le relazioni di follower-following
+            followers.get(toFollow).add(follower);
+
+            // TODO: notify clients
+
+            ConcurrentHashMap<String, List<String>> following = server.getFollowing();
+            if (!following.containsKey(follower)) {
+                following.put(follower, new ArrayList<>());
+            }
+            following.get(follower).add(toFollow);
+
+            reply.put("errCode", 0);
+            reply.put("errMsg", "OK");
+
+            ComUtility.send(reply.toString(), socket);
+        }
     }
 
 
@@ -87,7 +130,6 @@ public class WinsomeWorker implements Runnable {
     public void run() {
         // Ottieni richiesta e client (attraverso la selection key)
         JSONObject currRequest = request.getJson();
-        SelectionKey client = request.getKey();
 
         try {
             // Esegui le diverse operazioni
@@ -96,7 +138,7 @@ public class WinsomeWorker implements Runnable {
                     if (currRequest.has("username") && currRequest.has("password")) {
                         login(currRequest.getString("username"), currRequest.getString("password"));
                     } else {
-                        ComUtility.sendError(-1, "Transmission error", (SocketChannel) client.channel());
+                        ComUtility.sendError(-1, "Transmission error", socket);
                     }
                     break;
                 case OpCodes.LOGOUT:
@@ -104,6 +146,10 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.LIST_USERS:
                     listUsers();
+                    break;
+                case OpCodes.FOLLOW:
+                    follow();
+                    break;
                 default:
                     break;
             }

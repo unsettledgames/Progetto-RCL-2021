@@ -123,6 +123,11 @@ class WinsomeClient {
 
 
     public void list(String comm) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggato. Esegui l'accesso per svolgere l'operazione.");
+            return;
+        }
+
         TableList output;
         String[] args = getStringArgs(comm, 1);
 
@@ -160,6 +165,32 @@ class WinsomeClient {
         }
         else
             System.err.println("Errore: specificare quale elenco si desidera");
+    }
+
+
+    public void follow(String comm) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggato. Esegui l'accesso per svolgere l'operazione.");
+            return;
+        }
+        String[] args = getStringArgs(comm, 1);
+        if (args != null) {
+            JSONObject req = new JSONObject();
+            JSONObject reply;
+
+            req.put("user", currUsername);
+            req.put("toFollow", args[1]);
+            req.put("op", OpCodes.FOLLOW);
+
+            ComUtility.send(req.toString(), socket);
+            reply = new JSONObject(ComUtility.receive(socket));
+
+            ClientError.handleError("Ora segui " + args[1],
+                reply.getInt("errCode"), reply.getString("errMsg"));
+        }
+        else {
+            System.err.println("Errore: speciicare l'utente da seguire");
+        }
     }
 
 
@@ -201,6 +232,9 @@ class WinsomeClient {
                     break;
                 case "list":
                     client.list(currCommand);
+                    break;
+                case "follow":
+                    client.follow(currCommand);
                     break;
             }
         }
