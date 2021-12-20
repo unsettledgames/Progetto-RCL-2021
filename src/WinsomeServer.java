@@ -25,25 +25,33 @@ class WinsomeServer implements Runnable, IRemoteServer {
     private ExecutorService threadPool;
 
     // Dati del social
+    private HashMap<String, SelectionKey> activeSessions;
     private HashMap<String, User> users;
-    private List<SelectionKey> activeSessions;
 
     public WinsomeServer() {
         users = new HashMap<>();
-        activeSessions = new ArrayList<>();
+        activeSessions = new HashMap<>();
 
         // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
                 TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
     }
 
-    public void addSession(SelectionKey client) {
-        activeSessions.add(client);
+    public void addSession(String name, SelectionKey client) {
+        activeSessions.put(name, client);
     }
-    public void endSession(SelectionKey client){ activeSessions.remove(client);}
+    public void endSession(String name) {activeSessions.remove(name);}
+    public void endSession(SelectionKey client){
+        for (String key : activeSessions.keySet()) {
+            if (activeSessions.get(key).equals(client)) {
+                activeSessions.remove(client);
+                return;
+            }
+        }
+    }
 
-    public boolean isInSession(SelectionKey u) {
-        if (activeSessions.contains(u)) {
+    public boolean isInSession(String username) {
+        if (activeSessions.keySet().contains(username)) {
             return true;
         }
         return false;

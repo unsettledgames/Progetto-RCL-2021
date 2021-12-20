@@ -1,3 +1,5 @@
+import java.util.Locale;
+
 public class User {
     private String username;
     private String password;
@@ -7,6 +9,9 @@ public class User {
         this.username = username;
         this.password = password;
         this.tags = tags;
+
+        for (int i=0; i<tags.length; i++)
+            tags[i] = tags[i].toLowerCase(Locale.ROOT);
     }
 
     public String getUsername() {

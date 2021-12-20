@@ -17,9 +17,9 @@ public class WinsomeWorker implements Runnable {
         User u = server.getUser(user);
 
         if (u != null) {
-            if (!server.isInSession(request.getKey())) {
+            if (!server.isInSession(user)) {
                 if (u.getPassword().equals(pass)) {
-                    server.addSession(request.getKey());
+                    server.addSession(user, request.getKey());
                     ComUtility.sendAck((SocketChannel) request.getKey().channel());
                 }
                 else
@@ -33,8 +33,10 @@ public class WinsomeWorker implements Runnable {
     }
 
     public void logout() throws IOException {
-        if (server.isInSession(request.getKey())) {
-            server.endSession(request.getKey());
+        String user = request.getJson().getString("user");
+
+        if (server.isInSession(user)) {
+            server.endSession(user);
             ComUtility.sendAck((SocketChannel) request.getKey().channel());
         }
         else

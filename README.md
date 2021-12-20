@@ -70,7 +70,6 @@
   - wallet
 
 ## Roadmap
-- Persistenza
 - Follower e following
 - Creazione post, visualizzazione blog e feed
 - Notifiche
