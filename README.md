@@ -3,7 +3,6 @@
 ## TODO
 
 - User operations
-  - Follow user (given its id = username)
   - Show followings (so you can unfollow them)
   - Create text posts
   - See feed:
@@ -28,8 +27,6 @@
   - listFollowers() lista dei followers
     - Lista dei followers mantenuta localmente e aggiornata tramite notifiche
   - listFollowing() lista dei following
-  - followUser(id) l'utente che chiama inizia a seguire id. D'ora in poi riceve i suoi post nel feed.
-  - unfollowUser(id) l'utente smette di seguire id e di ricevere i suoi aggiornamenti
   - viewBlog() ritorna la lista di post creati dall'utente: si mostrano solo id, autore e titolo
   - createPost(titolo, contenuto) crea un post
     - Titolo max 20 caratteri
@@ -54,8 +51,6 @@
 - Client
   - list followers
   - list following
-  - follow <username>
-  - unfollow <username>
   - blog
   - feed
   - post <title> <content>

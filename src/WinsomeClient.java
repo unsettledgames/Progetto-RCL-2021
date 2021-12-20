@@ -194,6 +194,32 @@ class WinsomeClient {
     }
 
 
+    public void unfollow(String comm) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggato. Esegui l'accesso per svolgere l'operazione.");
+            return;
+        }
+        String[] args = getStringArgs(comm, 1);
+        if (args != null) {
+            JSONObject req = new JSONObject();
+            JSONObject reply;
+
+            req.put("user", currUsername);
+            req.put("toUnfollow", args[1]);
+            req.put("op", OpCodes.UNFOLLOW);
+
+            ComUtility.send(req.toString(), socket);
+            reply = new JSONObject(ComUtility.receive(socket));
+
+            ClientError.handleError("Hai smesso di seguire " + args[1],
+                    reply.getInt("errCode"), reply.getString("errMsg"));
+        }
+        else {
+            System.err.println("Errore: speciicare l'utente da smettere di seguire");
+        }
+    }
+
+
     public void closeConnection() throws IOException {
         socket.close();
     }
@@ -235,6 +261,9 @@ class WinsomeClient {
                     break;
                 case "follow":
                     client.follow(currCommand);
+                    break;
+                case "unfollow":
+                    client.unfollow(currCommand);
                     break;
             }
         }

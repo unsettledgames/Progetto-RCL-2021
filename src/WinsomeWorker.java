@@ -126,6 +126,43 @@ public class WinsomeWorker implements Runnable {
     }
 
 
+    public synchronized void unfollow() throws IOException {
+        JSONObject reply = new JSONObject();
+        String toUnfollow = request.getJson().getString("toUnfollow");
+        String follower = request.getJson().getString("user");
+
+        if (!server.getUsers().containsKey(toUnfollow)) {
+            reply.put("errCode", -2);
+            reply.put("errMsg", "L'utente da smettere di seguire non esiste");
+            ComUtility.send(reply.toString(), socket);
+        }
+        else {
+            ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
+            // Se l'utente non sta ancora seguendo l'utente da smettere di seguire
+            if (followers.get(toUnfollow) == null || !followers.get(toUnfollow).contains(follower)) {
+                // Ritorna un codice di errore
+                reply.put("errCode", -1);
+                reply.put("errMsg", "Non stai ancra seguendo questo utente");
+                ComUtility.send(reply.toString(), socket);
+                return;
+            }
+
+            // Altrimenti posso continuare a impostare le relazioni di follower-following
+            followers.get(toUnfollow).remove(follower);
+
+            // TODO: notify clients
+
+            ConcurrentHashMap<String, List<String>> following = server.getFollowing();
+            following.get(follower).remove(toUnfollow);
+
+            reply.put("errCode", 0);
+            reply.put("errMsg", "OK");
+
+            ComUtility.send(reply.toString(), socket);
+        }
+    }
+
+
     @Override
     public void run() {
         // Ottieni richiesta e client (attraverso la selection key)
@@ -149,6 +186,9 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.FOLLOW:
                     follow();
+                    break;
+                case OpCodes.UNFOLLOW:
+                    unfollow();
                     break;
                 default:
                     break;

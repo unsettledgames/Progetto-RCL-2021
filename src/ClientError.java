@@ -13,6 +13,9 @@
  *  OP = 4 (FOLLOW):
  *      -1: Utente già seguito
  *      -2: Utente non esistente
+ *  OP = 5 (UNFFOLOW):
+ *      -1: Utente non ancora seguito
+ *      -2: Utente non esistente
  */
 
 public class ClientError {
@@ -44,7 +47,7 @@ public class ClientError {
     private static int printError(int errCode, String message) {
         if (errCode == 0)
             return 0;
-        System.out.println("Errore " + errCode + ": " + message);
+        System.err.println("Errore " + errCode + ": " + message);
         return -1;
     }
 }
