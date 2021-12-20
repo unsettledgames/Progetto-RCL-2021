@@ -34,23 +34,6 @@ class WinsomeClient {
         while (!socket.finishConnect()) {}
     }
 
-    public void login(String comm) throws NoSuchAlgorithmException, IOException {
-        String[] args = getStringArgs(comm, 2);
-        if (args != null) {
-            JSONObject req = new JSONObject();
-            req.put("op", OpCodes.LOGIN);
-            req.put("username", args[1]);
-            req.put("password", Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(args[2].getBytes(StandardCharsets.UTF_8))));
-            ComUtility.send(req.toString(), socket);
-
-            JSONObject response = new JSONObject(ComUtility.receive(socket));
-            ClientError.handleError("Login avvenuto con successo. Benvenuto " + args[1],
-                    response.getInt("errCode"), OpCodes.LOGIN);
-        }
-        else {
-            System.err.println("Errore di login: troppi pochi parametri");
-        }
-    }
 
     public void signup(String comm) {
         String[] args = getStringArgs(comm, 3);
@@ -61,16 +44,17 @@ class WinsomeClient {
             else {
                 try {
                     String[] tags = Arrays.copyOfRange(args, 3, args.length);
-                    String password = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(args[3].getBytes(StandardCharsets.UTF_8)));
+                    String password = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(args[2].getBytes(StandardCharsets.UTF_8)));
 
                     String asteriks = "";
                     for (int i=0; i<password.length(); i++)
                         asteriks += "*";
 
-                    int err = signupObject.signup(args[1], password, tags);
+                    JSONObject reply = new JSONObject(signupObject.signup(args[1], password, tags));
+                    TableList summary = new TableList(3, "Username", "Password", "Tags").addRow(args[1],
+                            asteriks, Arrays.toString(tags)).withUnicode(true);
                     ClientError.handleError("Registrazione avvenuta con successo. Riepilogo:",
-                            new TableList(3, "Username", "Password", "Tags").addRow(args[1],
-                            asteriks, Arrays.toString(tags)).withUnicode(true), err, 0);
+                            summary, reply.getInt("errCode"), reply.getString("errMsg"));
                 }
                 catch (RemoteException e) {
                     System.err.println("Errore di rete: impossibile completare la registrazione");
@@ -83,6 +67,38 @@ class WinsomeClient {
             System.err.println("Errore di registrazione: troppi pochi parametri.");
         }
     }
+
+
+    public void login(String comm) throws NoSuchAlgorithmException, IOException {
+        String[] args = getStringArgs(comm, 2);
+        if (args != null) {
+            JSONObject req = new JSONObject();
+            req.put("op", OpCodes.LOGIN);
+            req.put("username", args[1]);
+
+            req.put("password", Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(args[2].getBytes(StandardCharsets.UTF_8))));
+            ComUtility.send(req.toString(), socket);
+
+            JSONObject response = new JSONObject(ComUtility.receive(socket));
+            ClientError.handleError("Login avvenuto con successo. Benvenuto " + args[1],
+                    response.getInt("errCode"), response.getString("errMsg"));
+        }
+        else {
+            System.err.println("Errore di login: troppi pochi parametri");
+        }
+    }
+
+
+    public void logout() throws IOException {
+        JSONObject req = new JSONObject();
+        req.put("op", OpCodes.LOGOUT);
+        ComUtility.send(req.toString(), socket);
+
+        JSONObject reply = new JSONObject(ComUtility.receive(socket));
+        ClientError.handleError("Logout eseguito correttamente",
+                reply.getInt("errCode"), reply.getString("errMsg"));
+    }
+
 
     public void closeConnection() throws IOException {
         socket.close();
@@ -117,13 +133,11 @@ class WinsomeClient {
                 case "login":
                     client.login(currCommand);
                     break;
+                case "logout":
+                    client.logout();
             }
         }
 
-        /*
-        ComUtility.send(toSend, clientChannel);
-        System.out.println(client.signupObject.signup("Fintaman", "Franco", new String[5]));
-        */
         client.closeConnection();
     }
 }

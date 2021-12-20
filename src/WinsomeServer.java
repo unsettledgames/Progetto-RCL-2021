@@ -39,6 +39,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public void addSession(SelectionKey client) {
         activeSessions.add(client);
     }
+    public void endSession(SelectionKey client){ activeSessions.remove(client);}
 
     public boolean isInSession(SelectionKey u) {
         if (activeSessions.contains(u)) {
@@ -116,7 +117,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
                         String content = ComUtility.receive(channel);
 
                         if (content.equals("")) {
-                            activeSessions.remove(currKey);
+                            endSession(currKey);
                             currKey.cancel();
                             System.out.println("Client disconnesso");
                         }
@@ -148,14 +149,20 @@ class WinsomeServer implements Runnable, IRemoteServer {
     }
 
     @Override
-    public int signup(String username, String password, String[] tags) throws RemoteException {
+    public String signup(String username, String password, String[] tags) throws RemoteException {
+        JSONObject ret = new JSONObject();
         if (users.containsKey(username)) {
-            return -1;
+            ret.put("errCode", -1);
+            ret.put("errMsg", "Utente già esistente");
         }
-        User toAdd = new User(username, password, tags);
-        users.put(username, toAdd);
+        else {
+            User toAdd = new User(username, password, tags);
+            users.put(username, toAdd);
+            ret.put("errCode", 0);
+            ret.put("errMsg", "Ok");
+        }
 
-        return 0;
+        return ret.toString();
     }
 
     public User getUser(String name) {

@@ -12,6 +12,13 @@ public class ComUtility {
         send(response.toString(), channel);
     }
 
+    public static void sendAck(SocketChannel channel) throws IOException {
+        JSONObject response = new JSONObject();
+        response.put("errCode", 0);
+        response.put("errMsg", "OK");
+        send(response.toString(), channel);
+    }
+
     public static void send(String toSend, SocketChannel channel) throws IOException {
         ByteBuffer buffer = ByteBuffer.allocate(toSend.getBytes().length + 4);
         // Send the buffer size
