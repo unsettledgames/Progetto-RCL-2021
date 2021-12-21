@@ -23,6 +23,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     private Selector selector;
     private ServerSocketChannel serverSocket;
     private ExecutorService threadPool;
+    private ConcurrentHashMap<SelectionKey, List<String>> replies;
 
     // Dati del social
     private HashMap<String, SelectionKey> activeSessions;
@@ -42,10 +43,13 @@ class WinsomeServer implements Runnable, IRemoteServer {
     }
 
     public void addSession(String name, SelectionKey client) {
+        replies.put(client, new ArrayList<>());
         activeSessions.put(name, client);
     }
 
-    public void endSession(String name) {activeSessions.remove(name);}
+    public void endSession(String name) {
+        activeSessions.remove(name);
+    }
     public void endSession(SelectionKey client) {
         for (String key : activeSessions.keySet()) {
             if (activeSessions.get(key).equals(client)) {
@@ -60,6 +64,10 @@ class WinsomeServer implements Runnable, IRemoteServer {
             return true;
         }
         return false;
+    }
+
+    public void enqueueReply(String reply, SelectionKey key) {
+        replies.get(key).add(reply);
     }
 
     public void config(String configFile) {

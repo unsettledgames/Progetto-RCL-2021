@@ -13,7 +13,8 @@
  *  OP = 4 (FOLLOW):
  *      -1: Utente già seguito
  *      -2: Utente non esistente
- *  OP = 5 (UNFFOLOW):
+ *      -3: Utente da seguire uguale all'utente che vuole seguire
+ *  OP = 5 (UNFOLOW):
  *      -1: Utente non ancora seguito
  *      -2: Utente non esistente
  */

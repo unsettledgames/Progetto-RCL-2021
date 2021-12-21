@@ -1,5 +1,6 @@
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import jdk.jshell.spi.ExecutionControl;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -160,6 +161,21 @@ class WinsomeClient {
                 case "followers":
                     break;
                 case "following":
+                    request.put("op", OpCodes.LIST_FOLLOWING);
+                    ComUtility.send(request.toString(), socket);
+                    reply = new JSONObject(ComUtility.receive(socket));
+
+                    if (ClientError.handleError("Lista degli utenti che segui: ",
+                            reply.getInt("errCode"), reply.getString("errMsg")) == 0) {
+                        List<String> names = new Gson().fromJson(reply.getString("items"),
+                                new TypeToken<List<String>>(){}.getType());
+                        output = new TableList("Nome utente").withUnicode(true);
+
+                        for (String name : names)
+                            output.addRow(name);
+                        output.print();
+                    }
+
                     break;
             }
         }
@@ -264,6 +280,11 @@ class WinsomeClient {
                     break;
                 case "unfollow":
                     client.unfollow(currCommand);
+                    break;
+                case "quit":
+                    break;
+                default:
+                    System.err.println("Comando errato o non ammesso");
                     break;
             }
         }

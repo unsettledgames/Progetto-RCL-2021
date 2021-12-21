@@ -53,7 +53,6 @@ public class WinsomeWorker implements Runnable {
     public void listUsers() throws IOException {
         String user = request.getJson().getString("user");
         User currUser = server.getUser(user);
-        String[] userTags = currUser.getTags();
 
         JSONObject json = new JSONObject();
         Gson gson = new Gson();
@@ -65,16 +64,10 @@ public class WinsomeWorker implements Runnable {
             Map.Entry<String, User> item = it.next();
 
             if (!item.getValue().equals(currUser)) {
-                List<String> currTags = Arrays.asList(item.getValue().getTags());
+                String[] commonTags = getCommonTags(user, item.getValue().getUsername());
 
-                List<String> commonTags = new ArrayList<>();
-
-                for (int i = 0; i < userTags.length; i++)
-                    if (currTags.contains(userTags[i]))
-                        commonTags.add(userTags[i]);
-
-                if (commonTags.size() > 0)
-                    ret.put(item.getKey(), Arrays.copyOf(commonTags.toArray(), commonTags.size(), String[].class));
+                if (commonTags.length > 0)
+                    ret.put(item.getKey(), commonTags);
             }
         }
 
@@ -85,44 +78,65 @@ public class WinsomeWorker implements Runnable {
     }
 
 
+    public void listFollowing() throws IOException {
+        String user = request.getJson().getString("user");
+
+        JSONObject json = new JSONObject();
+        Gson gson = new Gson();
+
+        json.put("items", gson.toJson(server.getFollowing().get(user)));
+        json.put("errCode", 0);
+        json.put("errMsg", "OK");
+
+        ComUtility.send(json.toString(), socket);
+    }
+
+
     public synchronized void follow() throws IOException {
         JSONObject reply = new JSONObject();
         String toFollow = request.getJson().getString("toFollow");
         String follower = request.getJson().getString("user");
+        String[] commonTags = getCommonTags(toFollow, follower);
+
+        if (toFollow.equals(follower)) {
+            reply.put("errCode", -3);
+            reply.put("errMsg", "Non puoi seguire te stesso");
+            ComUtility.send(reply.toString(), socket);
+        }
 
         if (!server.getUsers().containsKey(toFollow)) {
             reply.put("errCode", -2);
             reply.put("errMsg", "L'utente da seguire non esiste");
             ComUtility.send(reply.toString(), socket);
+            return;
         }
-        else {
-            ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
-            if (!followers.containsKey(toFollow)) {
-                followers.put(toFollow, new ArrayList<>());
-            }
-            // Se la condizione è verificata, il client sta già seguendo l'utente
-            if (followers.get(toFollow).contains(follower)) {
-                reply.put("errCode", -1);
-                reply.put("errMsg", "Stai gia' seguendo questo utente");
-                ComUtility.send(reply.toString(), socket);
-                return;
-            }
-            // Altrimenti posso continuare a impostare le relazioni di follower-following
-            followers.get(toFollow).add(follower);
 
-            // TODO: notify clients
-
-            ConcurrentHashMap<String, List<String>> following = server.getFollowing();
-            if (!following.containsKey(follower)) {
-                following.put(follower, new ArrayList<>());
-            }
-            following.get(follower).add(toFollow);
-
-            reply.put("errCode", 0);
-            reply.put("errMsg", "OK");
-
+        ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
+        if (!followers.containsKey(toFollow)) {
+            followers.put(toFollow, new ArrayList<>());
+        }
+        // Se la condizione è verificata, il client sta già seguendo l'utente
+        if (followers.get(toFollow).contains(follower)) {
+            reply.put("errCode", -1);
+            reply.put("errMsg", "Stai gia' seguendo questo utente");
             ComUtility.send(reply.toString(), socket);
+            return;
         }
+        // Altrimenti posso continuare a impostare le relazioni di follower-following
+        followers.get(toFollow).add(follower);
+
+        // TODO: notify clients
+
+        ConcurrentHashMap<String, List<String>> following = server.getFollowing();
+        if (!following.containsKey(follower)) {
+            following.put(follower, new ArrayList<>());
+        }
+        following.get(follower).add(toFollow);
+
+        reply.put("errCode", 0);
+        reply.put("errMsg", "OK");
+
+        ComUtility.send(reply.toString(), socket);
     }
 
 
@@ -142,7 +156,7 @@ public class WinsomeWorker implements Runnable {
             if (followers.get(toUnfollow) == null || !followers.get(toUnfollow).contains(follower)) {
                 // Ritorna un codice di errore
                 reply.put("errCode", -1);
-                reply.put("errMsg", "Non stai ancra seguendo questo utente");
+                reply.put("errMsg", "Non stai ancora seguendo questo utente");
                 ComUtility.send(reply.toString(), socket);
                 return;
             }
@@ -160,6 +174,22 @@ public class WinsomeWorker implements Runnable {
 
             ComUtility.send(reply.toString(), socket);
         }
+    }
+
+
+    private String[] getCommonTags(String userA, String userB) {
+        User a = server.getUser(userA);
+        User b = server.getUser(userB);
+
+        List<String> aTags = Arrays.asList(a.getTags());
+        List<String> bTags = Arrays.asList(b.getTags());
+        List<String> ret = new ArrayList<>();
+
+        for (String aTag : aTags)
+            if (bTags.contains(aTag))
+                ret.add(aTag);
+
+        return Arrays.copyOf(ret.toArray(), ret.size(), String[].class);
     }
 
 
@@ -183,6 +213,9 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.LIST_USERS:
                     listUsers();
+                    break;
+                case OpCodes.LIST_FOLLOWING:
+                    listFollowing();
                     break;
                 case OpCodes.FOLLOW:
                     follow();
