@@ -3,8 +3,7 @@
 ## TODO
 
 - User operations
-  - List followings
-  - Show followings (so you can unfollow them)
+  - list followers
   - Create text posts
   - See feed:
     - Only show posts from followers
@@ -50,7 +49,6 @@
 
 - Client
   - list follower
-  - list following
   - blog
   - feed
   - post <title> <content>

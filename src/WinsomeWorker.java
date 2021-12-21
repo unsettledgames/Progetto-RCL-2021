@@ -3,6 +3,7 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
+import java.sql.Array;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -81,8 +82,11 @@ public class WinsomeWorker implements Runnable {
 
         JSONObject json = new JSONObject();
         Gson gson = new Gson();
+        List<String> toConvert = server.getFollowing().get(user);
 
-        json.put("items", gson.toJson(server.getFollowing().get(user)));
+        if (toConvert == null)
+            toConvert = new ArrayList<>();
+        json.put("items", gson.toJson(toConvert));
         json.put("errCode", 0);
         json.put("errMsg", "OK");
 
@@ -120,7 +124,8 @@ public class WinsomeWorker implements Runnable {
         // Altrimenti posso continuare a impostare le relazioni di follower-following
         followers.get(toFollow).add(follower);
 
-        // TODO: notify clients
+        // Notify clients
+        server.notifyNewFollower(follower, toFollow, true);
 
         ConcurrentHashMap<String, List<String>> following = server.getFollowing();
         if (!following.containsKey(follower)) {

@@ -23,6 +23,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     private Selector selector;
     private ServerSocketChannel serverSocket;
     private ExecutorService threadPool;
+    private HashMap<String, IRemoteClient> toNotify;
 
     // Dati del social
     private HashMap<String, SelectionKey> activeSessions;
@@ -35,6 +36,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
         followers = new ConcurrentHashMap<>();
         following = new ConcurrentHashMap<>();
         activeSessions = new HashMap<>();
+        toNotify = new HashMap<>();
 
         // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
@@ -162,7 +164,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
         LocateRegistry.createRegistry(rmiPort);
         Registry r = LocateRegistry.getRegistry(rmiPort);
-        r.rebind("WINSOME_SIGNUP", stub);
+        r.rebind("WINSOME_SERVER", stub);
 
         System.out.println("Servizio di registrazione attivo");
     }
@@ -182,6 +184,28 @@ class WinsomeServer implements Runnable, IRemoteServer {
         }
 
         return ret.toString();
+    }
+
+    @Override
+    public void registerNotifications(String username, IRemoteClient client) throws RemoteException {
+        // Registra il client al servizio di notifiche
+        toNotify.put(username, client);
+
+        // Invia i follower correnti del client
+        List<String> followers = this.followers.get(username);
+        if (followers != null) {
+            for (String follower : followers) {
+                client.newFollower(follower, false);
+            }
+        }
+    }
+    @Override
+    public void unregisterNotifications(String client) throws RemoteException {
+        toNotify.remove(client);
+    }
+    public void notifyNewFollower(String follower, String following, boolean isNew) throws RemoteException {
+        if (toNotify.get(following) != null)
+            toNotify.get(following).newFollower(follower, isNew);
     }
 
     public User getUser(String name) {

@@ -14,26 +14,37 @@ import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.rmi.server.RemoteObject;
+import java.rmi.server.UnicastRemoteObject;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-class WinsomeClient {
+class WinsomeClient extends RemoteObject implements IRemoteClient {
     // Dati di connessione
     private IRemoteServer signupObject;
+    private IRemoteClient clientStub;
     private SocketChannel socket;
 
     // Dati di sessione
     private String currUsername;
+    private List<String> followers;
 
     public WinsomeClient() throws RemoteException, NotBoundException {
+        super();
         Registry r = LocateRegistry.getRegistry(6667);
-        Remote ro = r.lookup("WINSOME_SIGNUP");
+        Remote ro = r.lookup("WINSOME_SERVER");
+
         signupObject = (IRemoteServer) ro;
+        followers = new ArrayList<>();
+    }
+
+    public void newFollower(String follower, boolean isNew) throws RemoteException {
+        followers.add(follower);
+
+        if (isNew)
+            System.out.println(follower + " ha iniziato a seguirti!");
     }
 
     public void connect() throws IOException {
@@ -79,7 +90,7 @@ class WinsomeClient {
     }
 
 
-    public void login(String comm) throws NoSuchAlgorithmException, IOException {
+    public void login(String comm) throws NoSuchAlgorithmException, IOException, NotBoundException {
         String[] args = getStringArgs(comm, 2);
         if (args != null && currUsername == null) {
             JSONObject req = new JSONObject();
@@ -92,8 +103,15 @@ class WinsomeClient {
             JSONObject response = new JSONObject(ComUtility.receive(socket));
             ClientError.handleError("Login avvenuto con successo. Benvenuto " + args[1],
                     response.getInt("errCode"), response.getString("errMsg"));
-            if (response.getInt("errCode") == 0)
+
+            if (response.getInt("errCode") == 0) {
                 currUsername = args[1];
+
+                // Registrazine alla callback del server per i nuovi following
+                clientStub = (IRemoteClient) UnicastRemoteObject.exportObject(this, 0);
+                IRemoteServer serverStub = (IRemoteServer) LocateRegistry.getRegistry(6667).lookup("WINSOME_SERVER");
+                serverStub.registerNotifications(currUsername, clientStub);
+            }
         }
         else if (currUsername != null) {
             System.err.println("Errore di login: terminare la sessione corrente prima di cambiare account");
@@ -104,7 +122,7 @@ class WinsomeClient {
     }
 
 
-    public void logout() throws IOException {
+    public void logout() throws IOException, NotBoundException {
         if (currUsername != null) {
             JSONObject req = new JSONObject();
             req.put("op", OpCodes.LOGOUT);
@@ -114,8 +132,10 @@ class WinsomeClient {
             JSONObject reply = new JSONObject(ComUtility.receive(socket));
             ClientError.handleError("Logout eseguito correttamente",
                     reply.getInt("errCode"), reply.getString("errMsg"));
-            if (reply.getInt("errCode") == 0)
+            if (reply.getInt("errCode") == 0) {
+                ((IRemoteServer) LocateRegistry.getRegistry(6667).lookup("WINSOME_SERVER")).unregisterNotifications(currUsername);
                 currUsername = null;
+            }
         }
         else {
             System.err.println("Errore di logout: utente non loggato");
