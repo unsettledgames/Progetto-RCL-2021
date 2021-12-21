@@ -87,7 +87,7 @@ class WinsomeClient {
             req.put("username", args[1]);
 
             req.put("password", Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(args[2].getBytes(StandardCharsets.UTF_8))));
-            ComUtility.send(req.toString(), socket);
+            ComUtility.sendSync(req.toString(), socket);
 
             JSONObject response = new JSONObject(ComUtility.receive(socket));
             ClientError.handleError("Login avvenuto con successo. Benvenuto " + args[1],
@@ -109,7 +109,7 @@ class WinsomeClient {
             JSONObject req = new JSONObject();
             req.put("op", OpCodes.LOGOUT);
             req.put("user", currUsername);
-            ComUtility.send(req.toString(), socket);
+            ComUtility.sendSync(req.toString(), socket);
 
             JSONObject reply = new JSONObject(ComUtility.receive(socket));
             ClientError.handleError("Logout eseguito correttamente",
@@ -134,7 +134,6 @@ class WinsomeClient {
 
         JSONObject request = new JSONObject();
         JSONObject reply;
-        Gson gson = new Gson();
 
         request.put("user", currUsername);
 
@@ -142,7 +141,7 @@ class WinsomeClient {
             switch (args[1]) {
                 case "users":
                     request.put("op", OpCodes.LIST_USERS);
-                    ComUtility.send(request.toString(), socket);
+                    ComUtility.sendSync(request.toString(), socket);
                     reply = new JSONObject(ComUtility.receive(socket));
 
                     if (ClientError.handleError("Lista degli utenti con cui condividi degli interessi: ",
@@ -162,7 +161,7 @@ class WinsomeClient {
                     break;
                 case "following":
                     request.put("op", OpCodes.LIST_FOLLOWING);
-                    ComUtility.send(request.toString(), socket);
+                    ComUtility.sendSync(request.toString(), socket);
                     reply = new JSONObject(ComUtility.receive(socket));
 
                     if (ClientError.handleError("Lista degli utenti che segui: ",
@@ -198,7 +197,7 @@ class WinsomeClient {
             req.put("toFollow", args[1]);
             req.put("op", OpCodes.FOLLOW);
 
-            ComUtility.send(req.toString(), socket);
+            ComUtility.sendSync(req.toString(), socket);
             reply = new JSONObject(ComUtility.receive(socket));
 
             ClientError.handleError("Ora segui " + args[1],
@@ -224,7 +223,7 @@ class WinsomeClient {
             req.put("toUnfollow", args[1]);
             req.put("op", OpCodes.UNFOLLOW);
 
-            ComUtility.send(req.toString(), socket);
+            ComUtility.sendSync(req.toString(), socket);
             reply = new JSONObject(ComUtility.receive(socket));
 
             ClientError.handleError("Hai smesso di seguire " + args[1],

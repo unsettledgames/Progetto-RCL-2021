@@ -6,21 +6,32 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
 public class ComUtility {
-    public static void sendError(int code, String message, SocketChannel channel) throws IOException {
+    public static void attachError(int code, String message, SelectionKey key) throws IOException {
         JSONObject response = new JSONObject();
         response.put("errCode", code);
         response.put("errMsg", message);
-        send(response.toString(), channel);
+        key.attach(response.toString());
     }
 
-    public static void sendAck(SocketChannel channel) throws IOException {
+    public static void attachAck(SelectionKey key) throws IOException {
         JSONObject response = new JSONObject();
         response.put("errCode", 0);
         response.put("errMsg", "OK");
-        send(response.toString(), channel);
+        key.attach(response.toString());
     }
 
-    public static void send(String toSend, SocketChannel channel) throws IOException {
+    public static void sendAsync(SelectionKey key) throws IOException {
+        String toSend = (String)key.attachment();
+        ByteBuffer buffer = ByteBuffer.allocate(toSend.getBytes().length + 4);
+        // Send the buffer size
+        buffer.putInt(toSend.getBytes().length);
+        buffer.put(toSend.getBytes());
+        buffer.flip();
+        ((SocketChannel)key.channel()).write(buffer);
+        key.attach(null);
+    }
+
+    public static void sendSync(String toSend, SocketChannel channel) throws IOException {
         ByteBuffer buffer = ByteBuffer.allocate(toSend.getBytes().length + 4);
         // Send the buffer size
         buffer.putInt(toSend.getBytes().length);

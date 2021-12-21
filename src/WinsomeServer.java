@@ -23,7 +23,6 @@ class WinsomeServer implements Runnable, IRemoteServer {
     private Selector selector;
     private ServerSocketChannel serverSocket;
     private ExecutorService threadPool;
-    private ConcurrentHashMap<SelectionKey, List<String>> replies;
 
     // Dati del social
     private HashMap<String, SelectionKey> activeSessions;
@@ -42,10 +41,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
                 TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
     }
 
-    public void addSession(String name, SelectionKey client) {
-        replies.put(client, new ArrayList<>());
-        activeSessions.put(name, client);
-    }
+    public void addSession(String name, SelectionKey client) {activeSessions.put(name, client);}
 
     public void endSession(String name) {
         activeSessions.remove(name);
@@ -64,10 +60,6 @@ class WinsomeServer implements Runnable, IRemoteServer {
             return true;
         }
         return false;
-    }
-
-    public void enqueueReply(String reply, SelectionKey key) {
-        replies.get(key).add(reply);
     }
 
     public void config(String configFile) {
@@ -149,6 +141,10 @@ class WinsomeServer implements Runnable, IRemoteServer {
                             // Avvia l'esecuzione della richiesta ricevuta
                             this.threadPool.submit(new WinsomeWorker(this, new ClientRequest(currKey, json)));
                         }
+                    }
+                    else if (currKey.isWritable() && currKey.isValid() && currKey.attachment() != null) {
+                        // Send the attachment
+                        ComUtility.sendAsync(currKey);
                     }
                 }
                 catch (IOException e) {

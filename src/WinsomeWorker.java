@@ -3,20 +3,18 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
-import java.nio.channels.SocketChannel;
-import java.sql.Array;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class WinsomeWorker implements Runnable {
     private ClientRequest request;
     private WinsomeServer server;
-    private SocketChannel socket;
+    private SelectionKey key;
 
     public WinsomeWorker(WinsomeServer server, ClientRequest request) {
         this.request = request;
         this.server = server;
-        this.socket = (SocketChannel) request.getKey().channel();
+        this.key = request.getKey();
     }
 
     public void login(String user, String pass) throws IOException {
@@ -26,16 +24,16 @@ public class WinsomeWorker implements Runnable {
             if (!server.isInSession(user)) {
                 if (u.getPassword().equals(pass)) {
                     server.addSession(user, request.getKey());
-                    ComUtility.sendAck(socket);
+                    ComUtility.attachAck(key);
                 }
                 else
-                    ComUtility.sendError(-2, "Password errata", socket);
+                    ComUtility.attachError(-2, "Password errata", key);
             }
             else
-                ComUtility.sendError(-1, "Utente già loggato", socket);
+                ComUtility.attachError(-1, "Utente già loggato", key);
         }
         else
-            ComUtility.sendError(-3, "Utente non esistente", socket);
+            ComUtility.attachError(-3, "Utente non esistente", key);
     }
 
     public void logout() throws IOException {
@@ -43,10 +41,10 @@ public class WinsomeWorker implements Runnable {
 
         if (server.isInSession(user)) {
             server.endSession(user);
-            ComUtility.sendAck(socket);
+            ComUtility.attachAck(key);
         }
         else
-            ComUtility.sendError(-1, "Utente non loggato", socket);
+            ComUtility.attachError(-1, "Utente non loggato", key);
     }
 
 
@@ -74,7 +72,7 @@ public class WinsomeWorker implements Runnable {
         json.put("errCode", 0);
         json.put("errMsg", "OK");
         json.put("items", gson.toJson(ret));
-        ComUtility.send(json.toString(), socket);
+        key.attach(json.toString());
     }
 
 
@@ -88,7 +86,7 @@ public class WinsomeWorker implements Runnable {
         json.put("errCode", 0);
         json.put("errMsg", "OK");
 
-        ComUtility.send(json.toString(), socket);
+        key.attach(json.toString());
     }
 
 
@@ -99,15 +97,12 @@ public class WinsomeWorker implements Runnable {
         String[] commonTags = getCommonTags(toFollow, follower);
 
         if (toFollow.equals(follower)) {
-            reply.put("errCode", -3);
-            reply.put("errMsg", "Non puoi seguire te stesso");
-            ComUtility.send(reply.toString(), socket);
+            ComUtility.attachError(-3, "Non puoi seguire te stess@", key);
+            return;
         }
 
         if (!server.getUsers().containsKey(toFollow)) {
-            reply.put("errCode", -2);
-            reply.put("errMsg", "L'utente da seguire non esiste");
-            ComUtility.send(reply.toString(), socket);
+            ComUtility.attachError(-2, "L'utete da seguire non esiste", key);
             return;
         }
 
@@ -119,7 +114,7 @@ public class WinsomeWorker implements Runnable {
         if (followers.get(toFollow).contains(follower)) {
             reply.put("errCode", -1);
             reply.put("errMsg", "Stai gia' seguendo questo utente");
-            ComUtility.send(reply.toString(), socket);
+            key.attach(reply.toString());
             return;
         }
         // Altrimenti posso continuare a impostare le relazioni di follower-following
@@ -136,7 +131,7 @@ public class WinsomeWorker implements Runnable {
         reply.put("errCode", 0);
         reply.put("errMsg", "OK");
 
-        ComUtility.send(reply.toString(), socket);
+        key.attach(reply.toString());
     }
 
 
@@ -146,34 +141,29 @@ public class WinsomeWorker implements Runnable {
         String follower = request.getJson().getString("user");
 
         if (!server.getUsers().containsKey(toUnfollow)) {
-            reply.put("errCode", -2);
-            reply.put("errMsg", "L'utente da smettere di seguire non esiste");
-            ComUtility.send(reply.toString(), socket);
+            ComUtility.attachError(-2, "L'utente da smettere di seguire non esiste", key);
+            return;
         }
-        else {
-            ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
-            // Se l'utente non sta ancora seguendo l'utente da smettere di seguire
-            if (followers.get(toUnfollow) == null || !followers.get(toUnfollow).contains(follower)) {
-                // Ritorna un codice di errore
-                reply.put("errCode", -1);
-                reply.put("errMsg", "Non stai ancora seguendo questo utente");
-                ComUtility.send(reply.toString(), socket);
-                return;
-            }
-
-            // Altrimenti posso continuare a impostare le relazioni di follower-following
-            followers.get(toUnfollow).remove(follower);
-
-            // TODO: notify clients
-
-            ConcurrentHashMap<String, List<String>> following = server.getFollowing();
-            following.get(follower).remove(toUnfollow);
-
-            reply.put("errCode", 0);
-            reply.put("errMsg", "OK");
-
-            ComUtility.send(reply.toString(), socket);
+        ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
+        // Se l'utente non sta ancora seguendo l'utente da smettere di seguire
+        if (followers.get(toUnfollow) == null || !followers.get(toUnfollow).contains(follower)) {
+            // Ritorna un codice di errore
+            ComUtility.attachError(-1, "Non stai ancora seguendo questo utente", key);
+            return;
         }
+
+        // Altrimenti posso continuare a impostare le relazioni di follower-following
+        followers.get(toUnfollow).remove(follower);
+
+        // TODO: notify clients
+
+        ConcurrentHashMap<String, List<String>> following = server.getFollowing();
+        following.get(follower).remove(toUnfollow);
+
+        reply.put("errCode", 0);
+        reply.put("errMsg", "OK");
+
+        key.attach(reply.toString());
     }
 
 
@@ -205,7 +195,7 @@ public class WinsomeWorker implements Runnable {
                     if (currRequest.has("username") && currRequest.has("password")) {
                         login(currRequest.getString("username"), currRequest.getString("password"));
                     } else {
-                        ComUtility.sendError(-1, "Transmission error", socket);
+                        ComUtility.attachError(-1, "Transmission error", key);
                     }
                     break;
                 case OpCodes.LOGOUT:
