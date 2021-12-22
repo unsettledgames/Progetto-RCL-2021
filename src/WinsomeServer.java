@@ -207,6 +207,9 @@ class WinsomeServer implements Runnable, IRemoteServer {
         if (toNotify.get(following) != null)
             toNotify.get(following).newFollower(follower, isNew);
     }
+    public void notifyUnfollow(String follower, String following) throws RemoteException {
+        toNotify.get(following).unfollowed(follower);
+    }
 
     public User getUser(String name) {
         return users.get(name);

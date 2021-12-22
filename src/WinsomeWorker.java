@@ -159,8 +159,8 @@ public class WinsomeWorker implements Runnable {
 
         // Altrimenti posso continuare a impostare le relazioni di follower-following
         followers.get(toUnfollow).remove(follower);
-
-        // TODO: notify clients
+        // Invia la notifica di unfollow ai client connessi
+        server.notifyUnfollow(follower, toUnfollow);
 
         ConcurrentHashMap<String, List<String>> following = server.getFollowing();
         following.get(follower).remove(toUnfollow);

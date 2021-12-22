@@ -3,7 +3,6 @@
 ## TODO
 
 - User operations
-  - list followers
   - Create text posts
   - See feed:
     - Only show posts from followers
@@ -24,8 +23,6 @@
 
 
 - Server
-  - listFollowers() lista dei followers
-    - Lista dei followers mantenuta localmente e aggiornata tramite notifiche
   - viewBlog() ritorna la lista di post creati dall'utente: si mostrano solo id, autore e titolo
   - createPost(titolo, contenuto) crea un post
     - Titolo max 20 caratteri
@@ -48,7 +45,6 @@
   - getWalletBitcoin(): si attacca a random.org per generare il tasso di cambio e convertire la valuta
 
 - Client
-  - list follower
   - blog
   - feed
   - post <title> <content>
@@ -60,11 +56,12 @@
   - wallet
 
 ## Roadmap
-- Follower e following
 - Creazione post, visualizzazione blog e feed
-- Notifiche
+- Like, commenti, rewin
+- Ricompense
 
 ## POLISH
+- Rendi la parte di notifica dei follower indipendente tramite oggetti dedicati
 
 ## DEBUGGING
 - Rintraccia interazioni parziali (errori che avvengono ma viene parzialmente alterato lo stato del server)

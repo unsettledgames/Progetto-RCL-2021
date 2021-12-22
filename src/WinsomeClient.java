@@ -46,6 +46,9 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
         if (isNew)
             System.out.println(follower + " ha iniziato a seguirti!");
     }
+    public void unfollowed(String follower) throws RemoteException {
+        followers.remove(follower);
+    }
 
     public void connect() throws IOException {
         // Connect to the server, prepare the buffer
@@ -178,6 +181,10 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                         return;
                     break;
                 case "followers":
+                    output = new TableList("Nome utente").withUnicode(true);
+                    for (String follower : followers)
+                        output.addRow(follower);
+                    output.print();
                     break;
                 case "following":
                     request.put("op", OpCodes.LIST_FOLLOWING);
