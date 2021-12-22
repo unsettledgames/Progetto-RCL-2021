@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.reflect.Array;
 import java.net.*;
 import java.nio.channels.*;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +21,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static java.lang.Math.min;
 
 class WinsomeClient extends RemoteObject implements IRemoteClient {
     // Dati di connessione
@@ -104,7 +107,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
             ComUtility.sendSync(req.toString(), socket);
 
             JSONObject response = new JSONObject(ComUtility.receive(socket));
-            ClientError.handleError("Login avvenuto con successo. Benvenuto " + args[1],
+            ClientError.handleError("Login avvenuto con successo. Benvenut@ " + args[1],
                     response.getInt("errCode"), response.getString("errMsg"));
 
             if (response.getInt("errCode") == 0) {
@@ -148,7 +151,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
 
     public void list(String comm) throws IOException {
         if (currUsername == null) {
-            System.err.println("Non sei loggato. Esegui l'accesso per svolgere l'operazione.");
+            System.err.println("Non sei loggat@. Esegui l'accesso per svolgere l'operazione.");
             return;
         }
 
@@ -212,7 +215,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
 
     public void follow(String comm) throws IOException {
         if (currUsername == null) {
-            System.err.println("Non sei loggato. Esegui l'accesso per svolgere l'operazione.");
+            System.err.println("Non sei loggat@. Esegui l'accesso per svolgere l'operazione.");
             return;
         }
         String[] args = getStringArgs(comm, 1);
@@ -238,7 +241,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
 
     public void unfollow(String comm) throws IOException {
         if (currUsername == null) {
-            System.err.println("Non sei loggato. Esegui l'accesso per svolgere l'operazione.");
+            System.err.println("Non sei loggat@. Esegui l'accesso per svolgere l'operazione.");
             return;
         }
         String[] args = getStringArgs(comm, 1);
@@ -262,6 +265,43 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     }
 
 
+    public void post(String comm) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+        String[] args = getStringArgs(comm, 2, "\"");
+        JSONObject req = new JSONObject();
+
+        System.out.println("Args: " + Arrays.toString(args));
+
+        if (args != null) {
+            if (args[0].length() > 20) {
+                System.err.println("Errore di creazione del post: il titolo deve essere lungo meno di 20 caratteri");
+                return;
+            }
+            if (args[1].length() > 500) {
+                System.err.println("Errore di creazione del post: il contenuto deve essere lungo meno di 500 caratteri");
+                return;
+            }
+
+            req.put("user", currUsername);
+            req.put("op", OpCodes.CREATE_POST);
+            req.put("postTitle", args[0]);
+            req.put("postContent", args[1]);
+
+            ComUtility.sendSync(req.toString(), socket);
+            JSONObject reply = new JSONObject(ComUtility.receive(socket));
+
+            ClientError.handleError("Post creato con successo.", new TableList("Titolo", "Contenuto")
+                            .withUnicode(true).addRow(args[0], args[1]), reply.getInt("errCode"), reply.getString("errMsg"));
+        }
+        else {
+            System.err.println("Errore di creazione del post: parametri mancanti.");
+        }
+    }
+
+
     public void closeConnection() throws IOException {
         socket.close();
     }
@@ -271,6 +311,21 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
         if (ret.length-1 >= minExpected)
             return ret;
         return null;
+    }
+    private String[] getStringArgs(String comm, int minExpected, String token) {
+        List<String> args = new ArrayList<>();
+        if (comm.contains(token)) {
+            comm = comm.substring(comm.indexOf(token) + 1, comm.length());
+        }
+        while (comm.contains(token)) {
+            args.add(comm.substring(0, comm.indexOf(token)));
+            comm = comm.substring(min(comm.indexOf(token) + 3, comm.length()), comm.length());
+        }
+
+        if (args.size() < minExpected)
+            return null;
+
+        return Arrays.copyOf(args.toArray(), args.size(), String[].class);
     }
 
     public static void main(String[] args) throws IOException, NotBoundException, NoSuchAlgorithmException {
@@ -306,6 +361,9 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                     break;
                 case "unfollow":
                     client.unfollow(currCommand);
+                    break;
+                case "post":
+                    client.post(currCommand);
                     break;
                 case "quit":
                     break;

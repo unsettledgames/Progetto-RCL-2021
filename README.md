@@ -3,7 +3,6 @@
 ## TODO
 
 - User operations
-  - Create text posts
   - See feed:
     - Only show posts from followers
   - See blog:
@@ -24,10 +23,6 @@
 
 - Server
   - viewBlog() ritorna la lista di post creati dall'utente: si mostrano solo id, autore e titolo
-  - createPost(titolo, contenuto) crea un post
-    - Titolo max 20 caratteri
-    - Contenuto max 500 caratteri
-    - Il post ha un id univoco
   - showFeed(): id, autore e titolo dei post sul feed
   - showPost(id): fornisce dettagli maggiori su un post 
     - Titolo, contenuto
@@ -56,7 +51,7 @@
   - wallet
 
 ## Roadmap
-- Creazione post, visualizzazione blog e feed
+- Visualizzazione blog e feed
 - Like, commenti, rewin
 - Ricompense
 

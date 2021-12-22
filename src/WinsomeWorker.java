@@ -172,11 +172,23 @@ public class WinsomeWorker implements Runnable {
     }
 
 
+    public synchronized void createPost() throws IOException {
+        JSONObject req = request.getJson();
+        String user = req.getString("user");
+        ConcurrentHashMap<String, List<Post>> posts = server.getPosts();
+
+        posts.computeIfAbsent(user, k -> new ArrayList<>());
+        posts.get(user).add(new Post(req.getString("postTitle"), req.getString("postContent")));
+
+        ComUtility.attachAck(request.getKey());
+    }
+
+
     private String[] getCommonTags(String userA, String userB) {
         User a = server.getUser(userA);
         User b = server.getUser(userB);
 
-        List<String> aTags = Arrays.asList(a.getTags());
+        String[] aTags = a.getTags();
         List<String> bTags = Arrays.asList(b.getTags());
         List<String> ret = new ArrayList<>();
 
@@ -217,6 +229,9 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.UNFOLLOW:
                     unfollow();
+                    break;
+                case OpCodes.CREATE_POST:
+                    createPost();
                     break;
                 default:
                     break;

@@ -41,6 +41,11 @@ public class ServerPersistence extends Thread {
                 toLoad.setFollowing(gson.fromJson(json.getString("following"), type));
             if (json.has("followers"))
                 toLoad.setFollowers(gson.fromJson(json.getString("followers"), type));
+
+            // Carica posts
+            type = new TypeToken<ConcurrentHashMap<String, List<Post>>>(){}.getType();
+            if (json.has("posts"))
+                toLoad.setPosts(gson.fromJson(json.getString("posts"), type));
         }
         catch (NoSuchFileException e) {
             System.err.println("File di persistenza non trovato, il server verrà caricato senza dati precedenti.");
@@ -60,6 +65,7 @@ public class ServerPersistence extends Thread {
             json.put("users", gson.toJson(server.getUsers()));
             json.put("followers", gson.toJson(server.getFollowers()));
             json.put("following", gson.toJson(server.getFollowing()));
+            json.put("posts", gson.toJson(server.getPosts()));
 
             // Salva su file
             try (FileWriter writer = new FileWriter(fileName)){

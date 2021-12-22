@@ -27,16 +27,22 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
     // Dati del social
     private HashMap<String, SelectionKey> activeSessions;
+    // Dati relativi agli utenti e alle relazioni tra loro
     private ConcurrentHashMap<String, User> users;
     private ConcurrentHashMap<String, List<String>> followers;
     private ConcurrentHashMap<String, List<String>> following;
+    // Dati relativi a post, voti, commenti e rewin
+    private ConcurrentHashMap<String, List<Post>> posts;
 
     public WinsomeServer() {
+        toNotify = new HashMap<>();
+        activeSessions = new HashMap<>();
+
         users = new ConcurrentHashMap<>();
         followers = new ConcurrentHashMap<>();
         following = new ConcurrentHashMap<>();
-        activeSessions = new HashMap<>();
-        toNotify = new HashMap<>();
+
+        posts = new ConcurrentHashMap<>();
 
         // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
@@ -171,6 +177,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
     @Override
     public String signup(String username, String password, String[] tags) throws RemoteException {
+        // TODO: espressione regolare per la validità del nome utente
         JSONObject ret = new JSONObject();
         if (users.containsKey(username)) {
             ret.put("errCode", -1);
@@ -219,6 +226,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     }
     public ConcurrentHashMap<String, List<String>> getFollowers() {return followers;}
     public ConcurrentHashMap<String, List<String>> getFollowing() {return following;}
+    public ConcurrentHashMap<String, List<Post>> getPosts() {return posts;}
 
     public void setUsers(ConcurrentHashMap<String, User> users) {
         this.users = users;
@@ -229,6 +237,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public void setFollowing(ConcurrentHashMap<String, List<String>> following) {
         this.following = following;
     }
+    public void setPosts(ConcurrentHashMap<String, List<Post>> posts) { this.posts = posts; }
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {

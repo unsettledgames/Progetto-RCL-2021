@@ -17,6 +17,7 @@
  *  OP = 5 (UNFOLOW):
  *      -1: Utente non ancora seguito
  *      -2: Utente non esistente
+ *  OP =
  */
 
 public class ClientError {

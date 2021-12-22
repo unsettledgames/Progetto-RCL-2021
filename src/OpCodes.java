@@ -6,4 +6,5 @@ public class OpCodes {
     public static final int FOLLOW =            4;
     public static final int UNFOLLOW =          5;
     public static final int LIST_FOLLOWING =    6;
+    public static final int CREATE_POST =       7;
 }
