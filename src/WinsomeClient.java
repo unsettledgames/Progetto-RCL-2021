@@ -368,6 +368,33 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     }
 
 
+    public void comment(String command) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+
+        String[] args = getStringArgs(command, 2);
+        String[] commentContent = getStringArgs(command, 1, "\"");
+
+        if (args == null || commentContent == null) {
+            System.err.println("Errore nel commentare il post: troppi pochi parametri");
+            return;
+        }
+
+        JSONObject req = new JSONObject();
+        req.put("op", OpCodes.COMMENT_POST);
+        req.put("user", currUsername);
+        req.put("post", Long.parseLong(args[1]));
+        req.put("comment", commentContent[0]);
+        ComUtility.sendSync(req.toString(), socket);
+
+        JSONObject reply = new JSONObject(ComUtility.receive(socket));
+        ClientError.handleError("Commento aggiunto correttamente.", reply.getInt("errCode"),
+                reply.getString("errMsg"));
+    }
+
+
     public void showPost(String command) throws IOException {
         if (currUsername == null) {
             System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
@@ -375,13 +402,15 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
         }
 
         String[] args = getStringArgs(command, 2);
-
         if (args == null) {
+            System.err.println("Errore di visualizzazione del post: troppi pochi parametri");
+        }
+        else {
             JSONObject req = new JSONObject();
-            TableList out = new TableList("Id post", "Titolo", "Contenuto", "Upvotes", "Downvotes");
+            TableList out = new TableList("Id post", "Titolo", "Contenuto", "Upvotes", "Downvotes").withUnicode(true);
             req.put("op", OpCodes.SHOW_POST);
             req.put("user", currUsername);
-            req.put("post", args[2]);
+            req.put("post", Long.parseLong(args[2]));
 
             ComUtility.sendSync(req.toString(), socket);
             JSONObject reply = new JSONObject(ComUtility.receive(socket));
@@ -389,14 +418,19 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
             if (ClientError.handleError("Dettagli post " + args[2] + ": ",
                     reply.getInt("errCode"), reply.getString("errMsg")) == 0) {
 
-                out.addRow(reply.getString("id"), reply.getString("title"), reply.getString("content"),
-                        reply.getString("nUpvotes"), reply.getString("nDownvotes"));
+                List<Comment> comments = new Gson().fromJson(reply.getString("comments"),
+                        new TypeToken<List<Comment>>(){}.getType());
+                out.addRow(args[2], reply.getString("title"), reply.getString("content"),
+                        ""+reply.getInt("nUpvotes"), ""+reply.getInt("nDownvotes"));
+                out.print();
 
+                System.out.println("Commenti: ");
+                TableList commentTable = new TableList("Autore", "Commento").withUnicode(true);
+
+                for (Comment c : comments)
+                    commentTable.addRow(c.getUser(), c.getContent());
+                commentTable.print();
             }
-
-        }
-        else {
-            System.err.println("Errore di visualizzazione del post: troppi pochi parametri");
         }
     }
 
@@ -473,8 +507,12 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                 case "rate":
                     client.rate(currCommand);
                     break;
+                case "comment":
+                    client.comment(currCommand);
+                    break;
                 case "show":
-                    client.showPost(currCommand);
+                    if (currCommand.split(" ")[1].equals("post"))
+                        client.showPost(currCommand);
                     break;
                 case "quit":
                     break;

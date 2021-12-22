@@ -35,6 +35,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     private ConcurrentHashMap<String, List<Post>> authorPost;
     private ConcurrentHashMap<Long, Post> posts;
     private ConcurrentHashMap<Long, List<Vote>> votes;
+    private ConcurrentHashMap<Long, List<Comment>> comments;
 
     public WinsomeServer() {
         toNotify = new HashMap<>();
@@ -47,6 +48,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
         authorPost = new ConcurrentHashMap<>();
         posts = new ConcurrentHashMap<>();
         votes = new ConcurrentHashMap<>();
+        comments = new ConcurrentHashMap<>();
 
         // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
@@ -234,6 +236,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public ConcurrentHashMap<String, List<Post>> getAuthorPost() {return authorPost;}
     public ConcurrentHashMap<Long, List<Vote>> getVotes() {return votes;}
     public ConcurrentHashMap<Long, Post> getPosts() {return posts;}
+    public ConcurrentHashMap<Long, List<Comment>> getComments() {return this.comments;}
 
     public void setUsers(ConcurrentHashMap<String, User> users) {
         this.users = users;
@@ -255,6 +258,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
         Post.setMinId(nPosts);
     }
     public void setVotes(ConcurrentHashMap<Long, List<Vote>> votes){this.votes = votes;}
+    public void setComments(ConcurrentHashMap<Long, List<Comment>> comments){this.comments = comments;}
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {

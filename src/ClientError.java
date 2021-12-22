@@ -17,10 +17,15 @@
  *  OP = 5 (UNFOLOW):
  *      -1: Utente non ancora seguito
  *      -2: Utente non esistente
+ *  OP = 10 (SHOW_POST):
+ *      -1: Il post non è né visibile dall'utente né nel suo blog
  *  OP = 11 (RATE POST):
  *      -1: Post già votato dall'utente
  *      -2: Post non visibile dall'utente
  *      -3: Autore del voto è lo stesso del post
+ *  OP = 12 (COMMENT POST):
+ *      -1: Post creato dall'autore del commento
+ *      -2: Post non presente nel feed dell'autore
  */
 
 public class ClientError {

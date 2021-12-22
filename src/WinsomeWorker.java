@@ -98,7 +98,6 @@ public class WinsomeWorker implements Runnable {
         JSONObject reply = new JSONObject();
         String toFollow = request.getJson().getString("toFollow");
         String follower = request.getJson().getString("user");
-        String[] commonTags = getCommonTags(toFollow, follower);
 
         if (toFollow.equals(follower)) {
             ComUtility.attachError(-3, "Non puoi seguire te stess@", key);
@@ -109,6 +108,8 @@ public class WinsomeWorker implements Runnable {
             ComUtility.attachError(-2, "L'utete da seguire non esiste", key);
             return;
         }
+
+        String[] commonTags = getCommonTags(toFollow, follower);
 
         ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
         if (!followers.containsKey(toFollow)) {
@@ -244,6 +245,72 @@ public class WinsomeWorker implements Runnable {
     }
 
 
+    public synchronized void addComment() throws IOException {
+        JSONObject req = request.getJson();
+        String user = req.getString("user");
+        Long post = req.getLong("post");
+        ConcurrentHashMap<String, List<Post>> userPosts = server.getAuthorPost();
+        ConcurrentHashMap<Long, Post> posts = server.getPosts();
+        ConcurrentHashMap<Long, List<Comment>> comments = server.getComments();
+        List<Post> userFeed = getFeed(user);
+
+        if (userPosts.get(user).contains(posts.get(post))) {
+            ComUtility.attachError(-1, "Errore nell'aggiunta del commento: non puoi commentare i tuoi " +
+                    "stessi post", request.getKey());
+            return;
+        }
+        if (!userFeed.contains(posts.get(post))) {
+            ComUtility.attachError(-2, "Errore nell'aggiunta del commento: impossibile commentare un" +
+                    " post non presente all'interno del feed", request.getKey());
+            return;
+        }
+
+        if (comments.get(post) == null) {
+            comments.put(post, new ArrayList<>());
+        }
+        comments.get(post).add(new Comment(user, req.getString("comment")));
+        ComUtility.attachAck(request.getKey());
+    }
+
+
+    public synchronized void showPost() throws IOException {
+        JSONObject req = request.getJson();
+        JSONObject reply = new JSONObject();
+        Long post = req.getLong("post");
+        String user = req.getString("user");
+        List<Post> feed = getFeed(user);
+        Post toShow = server.getPosts().get(post);
+
+        if (toShow != null && (feed.contains(toShow) || toShow.getAuthor().equals(user))) {
+            int nNegative = 0;
+            int nPositive = 0;
+            List<Comment> comments = server.getComments().get(post);
+            List<Vote> votes = server.getVotes().get(post);
+
+            for (Vote v : votes) {
+                if (v.isPositive())
+                    nPositive++;
+                else
+                    nNegative++;
+            }
+
+            reply.put("errCode", 0);
+            reply.put("errMsg", "OK");
+            reply.put("title", toShow.getTitle());
+            reply.put("comments", new Gson().toJson(comments));
+            reply.put("nUpvotes", nPositive);
+            reply.put("nDownvotes", nNegative);
+            reply.put("content", toShow.getContent());
+
+            request.getKey().attach(reply.toString());
+        }
+        else {
+            ComUtility.attachError(-1, "Errore di visualizzazione: non sei autorizzato a vedere questo post",
+                    request.getKey());
+        }
+    }
+
+
     private List<Post> getFeed(String user) {
         List<Post> ret = new ArrayList<>();
 
@@ -311,11 +378,17 @@ public class WinsomeWorker implements Runnable {
                 case OpCodes.SHOW_BLOG:
                     viewBlog();
                     break;
+                case OpCodes.SHOW_FEED:
+                    viewFeed();
+                    break;
                 case OpCodes.RATE_POST:
                     ratePost();
                     break;
-                case OpCodes.SHOW_FEED:
-                    viewFeed();
+                case OpCodes.COMMENT_POST:
+                    addComment();
+                    break;
+                case OpCodes.SHOW_POST:
+                    showPost();
                     break;
                 default:
                     break;

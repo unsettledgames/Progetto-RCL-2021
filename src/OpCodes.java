@@ -11,4 +11,5 @@ public class OpCodes {
     public static final int SHOW_FEED =         9;
     public static final int SHOW_POST =         10;
     public static final int RATE_POST =         11;
+    public static final int COMMENT_POST =      12;
 }
