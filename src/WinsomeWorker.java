@@ -175,7 +175,7 @@ public class WinsomeWorker implements Runnable {
     public synchronized void createPost() throws IOException {
         JSONObject req = request.getJson();
         String user = req.getString("user");
-        ConcurrentHashMap<String, List<Post>> posts = server.getPosts();
+        ConcurrentHashMap<String, List<Post>> posts = server.getAuthorPost();
 
         posts.computeIfAbsent(user, k -> new ArrayList<>());
         posts.get(user).add(new Post(req.getString("postTitle"), req.getString("postContent"), user));
@@ -187,7 +187,7 @@ public class WinsomeWorker implements Runnable {
     public void viewBlog() {
         JSONObject reply = new JSONObject();
         String user = request.getJson().getString("user");
-        List<Post> userBlog = server.getPosts().get(user);
+        List<Post> userBlog = server.getAuthorPost().get(user);
 
         if (userBlog == null)
             userBlog = new ArrayList<>();
@@ -197,20 +197,65 @@ public class WinsomeWorker implements Runnable {
         key.attach(reply.toString());
     }
 
+
     public void viewFeed() {
         JSONObject reply = new JSONObject();
         String user = request.getJson().getString("user");
-        List<Post> userFeed = new ArrayList<>();
+        List<Post> userFeed = getFeed(user);
+
+        reply.put("items", new Gson().toJson(userFeed));
+        key.attach(reply.toString());
+    }
+
+
+    public synchronized void ratePost() throws IOException {
+        JSONObject req = request.getJson();
+        String author = req.getString("user");
+        Long post = req.getLong("post");
+        ConcurrentHashMap<Long, List<Vote>> votes = server.getVotes();
+        List<Vote> currVotes = votes.get(post);
+
+        if (currVotes != null) {
+            for (Vote v : currVotes) {
+                if (v.getUser().equals(author)) {
+                    ComUtility.attachError(-1, "Errore di votazione: hai già votato questo post.", request.getKey());
+                    return;
+                }
+            }
+        }
+        if (!getFeed(author).contains(server.getPosts().get(post))) {
+            ComUtility.attachError(-2, "Errore di votazione: non puoi votare un post che non fa " +
+                    "parte del tuo feed", request.getKey());
+            return;
+        }
+        if (server.getPosts().get(post).getAuthor().equals(author)) {
+            ComUtility.attachError(-3, "Errore di votazione: non puoi votare un tuo post.", request.getKey());
+            return;
+        }
+
+        if (currVotes == null) {
+            votes.put(post, new ArrayList<>());
+            currVotes = votes.get(post);
+        }
+        Vote toAdd = new Vote(author, req.getInt("value"));
+        currVotes.add(toAdd);
+
+        ComUtility.attachAck(request.getKey());
+    }
+
+
+    private List<Post> getFeed(String user) {
+        List<Post> ret = new ArrayList<>();
 
         for (String following : server.getFollowing().get(user)) {
-            if (server.getPosts().get(following) != null) {
-                userFeed.addAll(server.getPosts().get(following));
+            if (server.getAuthorPost().get(following) != null) {
+                ret.addAll(server.getAuthorPost().get(following));
             }
         }
 
-        Collections.sort(userFeed);
-        reply.put("items", new Gson().toJson(userFeed));
-        key.attach(reply.toString());
+        Collections.sort(ret);
+
+        return ret;
     }
 
 
@@ -265,6 +310,9 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.SHOW_BLOG:
                     viewBlog();
+                    break;
+                case OpCodes.RATE_POST:
+                    ratePost();
                     break;
                 case OpCodes.SHOW_FEED:
                     viewFeed();

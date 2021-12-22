@@ -17,7 +17,10 @@
  *  OP = 5 (UNFOLOW):
  *      -1: Utente non ancora seguito
  *      -2: Utente non esistente
- *  OP =
+ *  OP = 11 (RATE POST):
+ *      -1: Post già votato dall'utente
+ *      -2: Post non visibile dall'utente
+ *      -3: Autore del voto è lo stesso del post
  */
 
 public class ClientError {

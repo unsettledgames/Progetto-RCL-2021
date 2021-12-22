@@ -344,6 +344,63 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     }
 
 
+    public void rate(String command) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+
+        String[] args = getStringArgs(command, 2);
+        if (args == null) {
+            System.err.println("Errore nella valutazione del post: troppi pochi argomenti.");
+            return;
+        }
+        JSONObject req = new JSONObject();
+        req.put("op", OpCodes.RATE_POST);
+        req.put("user", currUsername);
+        req.put("value", Math.signum(Integer.parseInt(args[2])));
+        req.put("post", Long.parseLong(args[1]));
+        ComUtility.sendSync(req.toString(), socket);
+
+        JSONObject reply = new JSONObject(ComUtility.receive(socket));
+        ClientError.handleError("Valutazione aggiunta", reply.getInt("errCode"),
+                reply.getString("errMsg"));
+    }
+
+
+    public void showPost(String command) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+
+        String[] args = getStringArgs(command, 2);
+
+        if (args == null) {
+            JSONObject req = new JSONObject();
+            TableList out = new TableList("Id post", "Titolo", "Contenuto", "Upvotes", "Downvotes");
+            req.put("op", OpCodes.SHOW_POST);
+            req.put("user", currUsername);
+            req.put("post", args[2]);
+
+            ComUtility.sendSync(req.toString(), socket);
+            JSONObject reply = new JSONObject(ComUtility.receive(socket));
+
+            if (ClientError.handleError("Dettagli post " + args[2] + ": ",
+                    reply.getInt("errCode"), reply.getString("errMsg")) == 0) {
+
+                out.addRow(reply.getString("id"), reply.getString("title"), reply.getString("content"),
+                        reply.getString("nUpvotes"), reply.getString("nDownvotes"));
+
+            }
+
+        }
+        else {
+            System.err.println("Errore di visualizzazione del post: troppi pochi parametri");
+        }
+    }
+
+
     public void closeConnection() throws IOException {
         socket.close();
     }
@@ -412,6 +469,12 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                     break;
                 case "feed":
                     client.showFeed();
+                    break;
+                case "rate":
+                    client.rate(currCommand);
+                    break;
+                case "show":
+                    client.showPost(currCommand);
                     break;
                 case "quit":
                     break;

@@ -63,8 +63,8 @@ public class Post implements Comparable{
         if (p.getTimestamp().equals(timestamp))
             return 0;
         else if (p.getTimestamp().before(timestamp))
-            return 1;
-        else
             return -1;
+        else
+            return 1;
     }
 }

@@ -32,7 +32,9 @@ class WinsomeServer implements Runnable, IRemoteServer {
     private ConcurrentHashMap<String, List<String>> followers;
     private ConcurrentHashMap<String, List<String>> following;
     // Dati relativi a post, voti, commenti e rewin
-    private ConcurrentHashMap<String, List<Post>> posts;
+    private ConcurrentHashMap<String, List<Post>> authorPost;
+    private ConcurrentHashMap<Long, Post> posts;
+    private ConcurrentHashMap<Long, List<Vote>> votes;
 
     public WinsomeServer() {
         toNotify = new HashMap<>();
@@ -42,7 +44,9 @@ class WinsomeServer implements Runnable, IRemoteServer {
         followers = new ConcurrentHashMap<>();
         following = new ConcurrentHashMap<>();
 
+        authorPost = new ConcurrentHashMap<>();
         posts = new ConcurrentHashMap<>();
+        votes = new ConcurrentHashMap<>();
 
         // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
@@ -215,7 +219,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
             toNotify.get(following).newFollower(follower, isNew);
     }
     public void notifyUnfollow(String follower, String following) throws RemoteException {
-        toNotify.get(following).unfollowed(follower);
+        if (toNotify.get(following) != null)
+            toNotify.get(following).unfollowed(follower);
     }
 
     public User getUser(String name) {
@@ -226,7 +231,9 @@ class WinsomeServer implements Runnable, IRemoteServer {
     }
     public ConcurrentHashMap<String, List<String>> getFollowers() {return followers;}
     public ConcurrentHashMap<String, List<String>> getFollowing() {return following;}
-    public ConcurrentHashMap<String, List<Post>> getPosts() {return posts;}
+    public ConcurrentHashMap<String, List<Post>> getAuthorPost() {return authorPost;}
+    public ConcurrentHashMap<Long, List<Vote>> getVotes() {return votes;}
+    public ConcurrentHashMap<Long, Post> getPosts() {return posts;}
 
     public void setUsers(ConcurrentHashMap<String, User> users) {
         this.users = users;
@@ -237,10 +244,17 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public void setFollowing(ConcurrentHashMap<String, List<String>> following) {
         this.following = following;
     }
-    public void setPosts(ConcurrentHashMap<String, List<Post>> posts) {
-        this.posts = posts;
-        Post.setMinId(posts.size());
+    public void setPosts(ConcurrentHashMap<String, List<Post>> authorPost) {
+        int nPosts = 0;
+        this.authorPost = authorPost;
+
+        for (String k : authorPost.keySet())
+            for (Post p : authorPost.get(k))
+                posts.put(p.getId(), p);
+                nPosts++;
+        Post.setMinId(nPosts);
     }
+    public void setVotes(ConcurrentHashMap<Long, List<Vote>> votes){this.votes = votes;}
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
