@@ -184,6 +184,19 @@ public class WinsomeWorker implements Runnable {
     }
 
 
+    public void viewBlog() {
+        JSONObject reply = new JSONObject();
+        String user = request.getJson().getString("user");
+        List<Post> userBlog = server.getPosts().get(user);
+
+        if (userBlog == null)
+            userBlog = new ArrayList<>();
+
+        reply.put("items", new Gson().toJson(userBlog));
+        key.attach(reply.toString());
+    }
+
+
     private String[] getCommonTags(String userA, String userB) {
         User a = server.getUser(userA);
         User b = server.getUser(userB);
@@ -232,6 +245,9 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.CREATE_POST:
                     createPost();
+                    break;
+                case OpCodes.SHOW_BLOG:
+                    viewBlog();
                     break;
                 default:
                     break;

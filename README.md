@@ -42,7 +42,6 @@
 - Client
   - blog
   - feed
-  - post <title> <content>
   - show post <id>
   - delete <id>
   - rewin <id>

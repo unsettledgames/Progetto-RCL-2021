@@ -237,7 +237,10 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public void setFollowing(ConcurrentHashMap<String, List<String>> following) {
         this.following = following;
     }
-    public void setPosts(ConcurrentHashMap<String, List<Post>> posts) { this.posts = posts; }
+    public void setPosts(ConcurrentHashMap<String, List<Post>> posts) {
+        this.posts = posts;
+        Post.setMinId(posts.size());
+    }
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {

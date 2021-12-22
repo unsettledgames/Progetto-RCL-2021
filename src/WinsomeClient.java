@@ -38,6 +38,8 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
         super();
         Registry r = LocateRegistry.getRegistry(6667);
         Remote ro = r.lookup("WINSOME_SERVER");
+        // Esportazione del client per la ricezione delle notifiche
+        clientStub = (IRemoteClient) UnicastRemoteObject.exportObject(this, 0);
 
         signupObject = (IRemoteServer) ro;
         followers = new ArrayList<>();
@@ -114,7 +116,6 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                 currUsername = args[1];
 
                 // Registrazine alla callback del server per i nuovi following
-                clientStub = (IRemoteClient) UnicastRemoteObject.exportObject(this, 0);
                 IRemoteServer serverStub = (IRemoteServer) LocateRegistry.getRegistry(6667).lookup("WINSOME_SERVER");
                 serverStub.registerNotifications(currUsername, clientStub);
             }
@@ -302,6 +303,34 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     }
 
 
+    public void showBlog() throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+        TableList out = new TableList("Id post", "Titolo", "Autore").withUnicode(true);
+        JSONObject req = new JSONObject();
+        req.put("op", OpCodes.SHOW_BLOG);
+        req.put("user", currUsername);
+
+        ComUtility.sendSync(req.toString(), socket);
+        JSONObject reply = new JSONObject(ComUtility.receive(socket));
+
+        List<Post> posts = new Gson().fromJson(reply.getString("items"), new TypeToken<List<Post>>(){}.getType());
+        for (Post p : posts)
+            out.addRow(""+p.getId(), p.getTitle(), currUsername);
+        out.print();
+    }
+
+
+    public void showFeed() throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+    }
+
+
     public void closeConnection() throws IOException {
         socket.close();
     }
@@ -365,6 +394,12 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                 case "post":
                     client.post(currCommand);
                     break;
+                case "blog":
+                    client.showBlog();
+                    break;
+                case "feed":
+                    client.showFeed();
+                    break;
                 case "quit":
                     break;
                 default:
@@ -372,6 +407,8 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                     break;
             }
         }
+
+        // TODO: unbind register etc
 
         client.closeConnection();
     }

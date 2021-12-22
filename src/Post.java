@@ -48,4 +48,8 @@ public class Post {
     public boolean isRewin() {
         return rewin;
     }
+
+    public long getId() { return id; }
+
+    public static void setMinId(long toSet) { Post.postId = toSet;}
 }
