@@ -3,11 +3,6 @@
 ## TODO
 
 - User operations
-  - See feed:
-    - Only show posts from followers
-  - See blog:
-    - Show posts created by the user
-    - Show Resteems
   - Upvote / downvote / rewin / comments (can't comment comments, but it'd be nice if you could rate them)
   - View post comments
   - View wallet
@@ -22,8 +17,6 @@
 
 
 - Server
-  - viewBlog() ritorna la lista di post creati dall'utente: si mostrano solo id, autore e titolo
-  - showFeed(): id, autore e titolo dei post sul feed
   - showPost(id): fornisce dettagli maggiori su un post 
     - Titolo, contenuto
     - Numero di upvote e downvote
@@ -40,8 +33,6 @@
   - getWalletBitcoin(): si attacca a random.org per generare il tasso di cambio e convertire la valuta
 
 - Client
-  - blog
-  - feed
   - show post <id>
   - delete <id>
   - rewin <id>
@@ -50,8 +41,8 @@
   - wallet
 
 ## Roadmap
-- Visualizzazione blog e feed
 - Like, commenti, rewin
+- Showpost
 - Ricompense
 
 ## POLISH

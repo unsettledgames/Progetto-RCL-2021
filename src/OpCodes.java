@@ -8,4 +8,5 @@ public class OpCodes {
     public static final int LIST_FOLLOWING =    6;
     public static final int CREATE_POST =       7;
     public static final int SHOW_BLOG =         8;
+    public static final int SHOW_FEED =         9;
 }

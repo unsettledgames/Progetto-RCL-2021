@@ -178,7 +178,7 @@ public class WinsomeWorker implements Runnable {
         ConcurrentHashMap<String, List<Post>> posts = server.getPosts();
 
         posts.computeIfAbsent(user, k -> new ArrayList<>());
-        posts.get(user).add(new Post(req.getString("postTitle"), req.getString("postContent")));
+        posts.get(user).add(new Post(req.getString("postTitle"), req.getString("postContent"), user));
 
         ComUtility.attachAck(request.getKey());
     }
@@ -191,8 +191,25 @@ public class WinsomeWorker implements Runnable {
 
         if (userBlog == null)
             userBlog = new ArrayList<>();
+        Collections.sort(userBlog);
 
         reply.put("items", new Gson().toJson(userBlog));
+        key.attach(reply.toString());
+    }
+
+    public void viewFeed() {
+        JSONObject reply = new JSONObject();
+        String user = request.getJson().getString("user");
+        List<Post> userFeed = new ArrayList<>();
+
+        for (String following : server.getFollowing().get(user)) {
+            if (server.getPosts().get(following) != null) {
+                userFeed.addAll(server.getPosts().get(following));
+            }
+        }
+
+        Collections.sort(userFeed);
+        reply.put("items", new Gson().toJson(userFeed));
         key.attach(reply.toString());
     }
 
@@ -248,6 +265,9 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.SHOW_BLOG:
                     viewBlog();
+                    break;
+                case OpCodes.SHOW_FEED:
+                    viewFeed();
                     break;
                 default:
                     break;

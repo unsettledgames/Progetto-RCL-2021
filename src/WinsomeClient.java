@@ -328,6 +328,19 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
             System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
             return;
         }
+
+        TableList out = new TableList("Id post", "Titolo", "Autore").withUnicode(true);
+        JSONObject req = new JSONObject();
+        req.put("op", OpCodes.SHOW_FEED);
+        req.put("user", currUsername);
+
+        ComUtility.sendSync(req.toString(), socket);
+        JSONObject reply = new JSONObject(ComUtility.receive(socket));
+
+        List<Post> posts = new Gson().fromJson(reply.getString("items"), new TypeToken<List<Post>>(){}.getType());
+        for (Post p : posts)
+            out.addRow(""+p.getId(), p.getTitle(), p.getAuthor());
+        out.print();
     }
 
 
