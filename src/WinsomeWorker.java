@@ -198,7 +198,7 @@ public class WinsomeWorker implements Runnable {
         List<Post> userBlog = new ArrayList<>();
 
         for (Post p : server.getPosts().values()) {
-            if (p.getAuthor().equals(user) || p.getRewinner().equals(user))
+            if (p.getAuthor().equals(user) && !p.isRewin())
                 userBlog.add(p);
         }
 
@@ -275,9 +275,8 @@ public class WinsomeWorker implements Runnable {
             return;
         }
 
-        if (comments.get(post) == null) {
-            comments.put(post, new ArrayList<>());
-        }
+        post = getOriginalPost(post);
+        comments.computeIfAbsent(post, k -> new ArrayList<>());
         comments.get(post).add(new Comment(user, req.getString("comment")));
         ComUtility.attachAck(request.getKey());
     }
@@ -294,8 +293,19 @@ public class WinsomeWorker implements Runnable {
         if (toShow != null && (feed.contains(toShow) || toShow.getAuthor().equals(user))) {
             int nNegative = 0;
             int nPositive = 0;
+
+            post = getOriginalPost(post);
+            toShow = server.getPosts().get(post);
+
             List<Comment> comments = server.getComments().get(post);
             List<Vote> votes = server.getVotes().get(post);
+
+            // Aggiungi anche i commenti ai rewin
+            if (server.getRewins().get(post) != null) {
+                for (Long p : server.getRewins().get(post)) {
+                    comments.addAll(server.getComments().get(p));
+                }
+            }
 
             if (votes != null) {
                 for (Vote v : votes) {
@@ -387,6 +397,7 @@ public class WinsomeWorker implements Runnable {
         List<String> following = server.getFollowing().get(user);
 
         for (Post p : server.getPosts().values()) {
+            // Se voglio il blog non includo i rewin
             if (following.contains(p.getAuthor()) || following.contains(p.getRewinner())) {
                 ret.add(p);
             }
@@ -395,6 +406,24 @@ public class WinsomeWorker implements Runnable {
         Collections.sort(ret);
 
         return ret;
+    }
+
+
+    private synchronized Long getOriginalPost(Long rewin) {
+        // Se il post è un rewin, i commenti devono andare sul post originale
+        if (server.getPosts().get(rewin).isRewin()) {
+            Iterator<Long> postsIt = server.getRewins().keys().asIterator();
+
+            // Finché non ho trovato il post originale
+            while (postsIt.hasNext()) {
+                Long rewinned = postsIt.next();
+                // Controllo tra i rewin e restituisco la chiave che contiene la versione rewinnata del post
+                if (server.getRewins().get(rewinned).contains(rewin)) {
+                    return rewinned;
+                }
+            }
+        }
+        return rewin;
     }
 
 
