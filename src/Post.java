@@ -14,7 +14,7 @@ public class Post implements Comparable{
 
     public Post(String title, String content, String author) {
         rewinner = "";
-        init(title, content, author, false, 0);
+        init(title, content, author, false, 1);
     }
 
     public Post(Post other, String rewinner) {

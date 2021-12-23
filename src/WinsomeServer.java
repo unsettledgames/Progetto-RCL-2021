@@ -38,6 +38,9 @@ class WinsomeServer implements Runnable, IRemoteServer {
     private ConcurrentHashMap<Long, List<Comment>> comments;
     private ConcurrentHashMap<Long, List<Long>> rewins;
 
+    // Rewards
+    private long rewardRate;
+
     public WinsomeServer() {
         toNotify = new HashMap<>();
         activeSessions = new HashMap<>();
@@ -93,6 +96,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
                         this.rmiHost = line.split(" ")[1].strip();
                     else if (line.startsWith("REG_PORT"))
                         this.rmiPort = Integer.parseInt(line.split(" ")[1].strip());
+                    else if (line.startsWith("REWARD_RATE"))
+                        this.rewardRate = Long.parseLong(line.split(" ")[1].strip());
                     else
                         throw new ConfigException("Parametro inaspettato " + line);
                 }
@@ -240,6 +245,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public ConcurrentHashMap<Long, Post> getPosts() {return posts;}
     public ConcurrentHashMap<Long, List<Comment>> getComments() {return this.comments;}
     public ConcurrentHashMap<Long, List<Long>> getRewins() {return this.rewins;}
+    public long getRewardRate() {return rewardRate;}
 
     public void setUsers(ConcurrentHashMap<String, User> users) {
         this.users = users;
@@ -285,5 +291,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
         new Thread(server).start();
         // Inizia la routine di salvataggio dei dati
         new ServerPersistence(server, "data.json", 5000).start();
+        // Inizia la routine di calcolo delle ricompense
+        new ServerRewards(server, server.getRewardRate());
     }
 }

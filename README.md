@@ -32,5 +32,6 @@
 - Isolare il più possibile le eccezioni (eliminare throws nelle funzioni che usano ComUtility per esempio)
 - Impedire registrazione quando si è loggati
 - Rimuovi accenti
+- Commenti
 ## DEBUGGING
 - Rintraccia interazioni parziali (errori che avvengono ma viene parzialmente alterato lo stato del server)
