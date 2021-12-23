@@ -435,6 +435,29 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     }
 
 
+    public void deletePost(String command) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+
+        String[] args = getStringArgs(command, 1);
+        if (args == null) {
+            System.err.println("Errore di eliminazione: id del post da cancellare mancante");
+            return;
+        }
+
+        JSONObject req = new JSONObject();
+        req.put("user", currUsername);
+        req.put("op", OpCodes.DELETE_POST);
+        req.put("post", Long.parseLong(args[1]));
+        ComUtility.sendSync(req.toString(), socket);
+
+        JSONObject reply = new JSONObject(ComUtility.receive(socket));
+        ClientError.handleError("Post eliminato", reply.getInt("errCode"), reply.getString("errMsg"));
+    }
+
+
     public void closeConnection() throws IOException {
         socket.close();
     }
@@ -513,6 +536,9 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                 case "show":
                     if (currCommand.split(" ")[1].equals("post"))
                         client.showPost(currCommand);
+                    break;
+                case "delete":
+                    client.deletePost(currCommand);
                     break;
                 case "quit":
                     break;

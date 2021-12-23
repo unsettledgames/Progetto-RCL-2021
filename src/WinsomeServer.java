@@ -248,13 +248,14 @@ class WinsomeServer implements Runnable, IRemoteServer {
         this.following = following;
     }
     public void setPosts(ConcurrentHashMap<String, List<Post>> authorPost) {
-        int nPosts = 0;
+        long nPosts = 0;
         this.authorPost = authorPost;
 
         for (String k : authorPost.keySet())
-            for (Post p : authorPost.get(k))
+            for (Post p : authorPost.get(k)) {
                 posts.put(p.getId(), p);
-                nPosts++;
+                nPosts = Math.max(nPosts, p.getId());
+            }
         Post.setMinId(nPosts);
     }
     public void setVotes(ConcurrentHashMap<Long, List<Vote>> votes){this.votes = votes;}

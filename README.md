@@ -16,13 +16,11 @@
 
 
 - Server
-  - deletePost(id): se un utente è autore di un post e lo sta visualizzando con showPost, può cancellarlo
   - rewinPost(id)
   - getWallet(): restituisce il totale corrente e i dettagli sulle transazioni
   - getWalletBitcoin(): si attacca a random.org per generare il tasso di cambio e convertire la valuta
 
 - Client
-  - delete <id>
   - rewin <id>
   - wallet
 

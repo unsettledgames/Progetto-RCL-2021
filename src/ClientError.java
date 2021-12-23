@@ -26,6 +26,9 @@
  *  OP = 12 (COMMENT POST):
  *      -1: Post creato dall'autore del commento
  *      -2: Post non presente nel feed dell'autore
+ *  OP = 13 (DELETE POST):
+ *      -1: Il post da cancellare non esiste
+ *      -2: L'utente che intende cancellare il post non ne è l'autore
  */
 
 public class ClientError {

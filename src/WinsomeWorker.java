@@ -177,10 +177,11 @@ public class WinsomeWorker implements Runnable {
         JSONObject req = request.getJson();
         String user = req.getString("user");
         ConcurrentHashMap<String, List<Post>> posts = server.getAuthorPost();
+        Post toAdd = new Post(req.getString("postTitle"), req.getString("postContent"), user);
 
         posts.computeIfAbsent(user, k -> new ArrayList<>());
-        posts.get(user).add(new Post(req.getString("postTitle"), req.getString("postContent"), user));
-
+        posts.get(user).add(toAdd);
+        server.getPosts().put(toAdd.getId(), toAdd);
         ComUtility.attachAck(request.getKey());
     }
 
@@ -311,6 +312,36 @@ public class WinsomeWorker implements Runnable {
     }
 
 
+    public synchronized void deletePost() throws IOException {
+        JSONObject req = request.getJson();
+        String user = req.getString("user");
+        Long post = req.getLong("post");
+        Post toDelete = server.getPosts().get(post);
+
+        if (toDelete == null) {
+            ComUtility.attachError(-1, "Il post da eliminare non esiste.", request.getKey());
+            return;
+        }
+        if (!toDelete.getAuthor().equals(user)) {
+            ComUtility.attachError(-2, "Impossibile eliminare un post di cui non si e' l'autore.",
+                    request.getKey());
+            return;
+        }
+
+        // Rimuovo il post dall'insieme dei post
+        server.getPosts().remove(post);
+        // Rimuovo il post da quelli creati dall'utente
+        server.getAuthorPost().get(user).remove(toDelete);
+        // Rimuovo i voti
+        server.getVotes().remove(post);
+        // Rimuovo i commenti
+        server.getComments().remove(post);
+
+        // Mando un ack al client
+        ComUtility.attachAck(request.getKey());
+    }
+
+
     private List<Post> getFeed(String user) {
         List<Post> ret = new ArrayList<>();
 
@@ -389,6 +420,9 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.SHOW_POST:
                     showPost();
+                    break;
+                case OpCodes.DELETE_POST:
+                    deletePost();
                     break;
                 default:
                     break;

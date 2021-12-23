@@ -79,7 +79,7 @@ public class ServerPersistence extends Thread {
 
             // Salva su file
             try (FileWriter writer = new FileWriter(fileName)){
-                writer.write(json.toString());
+                writer.write(json.toString(4));
             } catch (IOException e) {
                 e.printStackTrace();
             }
