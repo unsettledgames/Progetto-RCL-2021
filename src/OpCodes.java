@@ -13,4 +13,5 @@ public class OpCodes {
     public static final int RATE_POST =         11;
     public static final int COMMENT_POST =      12;
     public static final int DELETE_POST =       13;
+    public static final int REWIN_POST =        14;
 }

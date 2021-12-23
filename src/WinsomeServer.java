@@ -36,6 +36,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     private ConcurrentHashMap<Long, Post> posts;
     private ConcurrentHashMap<Long, List<Vote>> votes;
     private ConcurrentHashMap<Long, List<Comment>> comments;
+    private ConcurrentHashMap<Long, List<Long>> rewins;
 
     public WinsomeServer() {
         toNotify = new HashMap<>();
@@ -49,6 +50,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
         posts = new ConcurrentHashMap<>();
         votes = new ConcurrentHashMap<>();
         comments = new ConcurrentHashMap<>();
+        rewins = new ConcurrentHashMap<>();
 
         // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
@@ -237,6 +239,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public ConcurrentHashMap<Long, List<Vote>> getVotes() {return votes;}
     public ConcurrentHashMap<Long, Post> getPosts() {return posts;}
     public ConcurrentHashMap<Long, List<Comment>> getComments() {return this.comments;}
+    public ConcurrentHashMap<Long, List<Long>> getRewins() {return this.rewins;}
 
     public void setUsers(ConcurrentHashMap<String, User> users) {
         this.users = users;
@@ -247,19 +250,21 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public void setFollowing(ConcurrentHashMap<String, List<String>> following) {
         this.following = following;
     }
-    public void setPosts(ConcurrentHashMap<String, List<Post>> authorPost) {
-        long nPosts = 0;
-        this.authorPost = authorPost;
+    public void setPosts(ConcurrentHashMap<Long, Post> posts) {
+        long postId = 0;
+        this.posts = posts;
 
-        for (String k : authorPost.keySet())
-            for (Post p : authorPost.get(k)) {
-                posts.put(p.getId(), p);
-                nPosts = Math.max(nPosts, p.getId());
-            }
-        Post.setMinId(nPosts);
+        for (Post p : posts.values()) {
+            this.authorPost.computeIfAbsent(p.getAuthor(), k -> new ArrayList<>());
+            this.authorPost.get(p.getAuthor()).add(p);
+            postId = Math.max(postId, p.getId());
+        }
+
+        Post.setMinId(postId + 1);
     }
     public void setVotes(ConcurrentHashMap<Long, List<Vote>> votes){this.votes = votes;}
     public void setComments(ConcurrentHashMap<Long, List<Comment>> comments){this.comments = comments;}
+    public void setRewins(ConcurrentHashMap<Long, List<Long>> rewins) { this.rewins = rewins; }
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {

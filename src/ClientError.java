@@ -14,6 +14,7 @@
  *      -1: Utente già seguito
  *      -2: Utente non esistente
  *      -3: Utente da seguire uguale all'utente che vuole seguire
+ *      -4: Utente da seguire non condivide interessi
  *  OP = 5 (UNFOLOW):
  *      -1: Utente non ancora seguito
  *      -2: Utente non esistente
@@ -29,6 +30,9 @@
  *  OP = 13 (DELETE POST):
  *      -1: Il post da cancellare non esiste
  *      -2: L'utente che intende cancellare il post non ne è l'autore
+ *  OP = 14 (REWIN POST):
+ *      -1: Il post non è visibile nel feed dell'utente
+ *      -2: L'utente ha già rewinnato il post
  */
 
 public class ClientError {

@@ -43,7 +43,7 @@ public class ServerPersistence extends Thread {
                 toLoad.setFollowers(gson.fromJson(json.getString("followers"), type));
 
             // Carica posts
-            type = new TypeToken<ConcurrentHashMap<String, List<Post>>>(){}.getType();
+            type = new TypeToken<ConcurrentHashMap<Long, Post>>(){}.getType();
             if (json.has("posts"))
                 toLoad.setPosts(gson.fromJson(json.getString("posts"), type));
             // Carica voti
@@ -54,6 +54,10 @@ public class ServerPersistence extends Thread {
             type = new TypeToken<ConcurrentHashMap<Long, List<Comment>>>(){}.getType();
             if (json.has("comments"))
                 toLoad.setComments(gson.fromJson(json.getString("comments"), type));
+            // Carica rewins
+            type = new TypeToken<ConcurrentHashMap<Long, List<Long>>>(){}.getType();
+            if (json.has("rewins"))
+                toLoad.setRewins(gson.fromJson(json.getString("rewins"), type));
         }
         catch (NoSuchFileException e) {
             System.err.println("File di persistenza non trovato, il server verrà caricato senza dati precedenti.");
@@ -73,9 +77,10 @@ public class ServerPersistence extends Thread {
             json.put("users", gson.toJson(server.getUsers()));
             json.put("followers", gson.toJson(server.getFollowers()));
             json.put("following", gson.toJson(server.getFollowing()));
-            json.put("posts", gson.toJson(server.getAuthorPost()));
+            json.put("posts", gson.toJson(server.getPosts()));
             json.put("votes", gson.toJson(server.getVotes()));
             json.put("comments", gson.toJson(server.getComments()));
+            json.put("rewins", gson.toJson(server.getRewins()));
 
             // Salva su file
             try (FileWriter writer = new FileWriter(fileName)){

@@ -308,7 +308,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
             System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
             return;
         }
-        TableList out = new TableList("Id post", "Titolo", "Autore").withUnicode(true);
+        TableList out = new TableList("Id post", "Titolo", "Autore", "Rewinner").withUnicode(true);
         JSONObject req = new JSONObject();
         req.put("op", OpCodes.SHOW_BLOG);
         req.put("user", currUsername);
@@ -318,7 +318,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
 
         List<Post> posts = new Gson().fromJson(reply.getString("items"), new TypeToken<List<Post>>(){}.getType());
         for (Post p : posts)
-            out.addRow(""+p.getId(), p.getTitle(), currUsername);
+            out.addRow(""+p.getId(), p.getTitle(), p.getAuthor(), p.getRewinner());
         out.print();
     }
 
@@ -329,7 +329,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
             return;
         }
 
-        TableList out = new TableList("Id post", "Titolo", "Autore").withUnicode(true);
+        TableList out = new TableList("Id post", "Titolo", "Autore", "Rewinner").withUnicode(true);
         JSONObject req = new JSONObject();
         req.put("op", OpCodes.SHOW_FEED);
         req.put("user", currUsername);
@@ -339,7 +339,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
 
         List<Post> posts = new Gson().fromJson(reply.getString("items"), new TypeToken<List<Post>>(){}.getType());
         for (Post p : posts)
-            out.addRow(""+p.getId(), p.getTitle(), p.getAuthor());
+            out.addRow(""+p.getId(), p.getTitle(), p.getAuthor(), p.getRewinner());
         out.print();
     }
 
@@ -427,9 +427,11 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                 System.out.println("Commenti: ");
                 TableList commentTable = new TableList("Autore", "Commento").withUnicode(true);
 
-                for (Comment c : comments)
-                    commentTable.addRow(c.getUser(), c.getContent());
-                commentTable.print();
+                if (comments != null) {
+                    for (Comment c : comments)
+                        commentTable.addRow(c.getUser(), c.getContent());
+                    commentTable.print();
+                }
             }
         }
     }
@@ -455,6 +457,30 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
 
         JSONObject reply = new JSONObject(ComUtility.receive(socket));
         ClientError.handleError("Post eliminato", reply.getInt("errCode"), reply.getString("errMsg"));
+    }
+
+
+    public void rewinPost(String command) throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+
+        String[] args = getStringArgs(command, 1);
+        if (args == null) {
+            System.err.println("Errore di rewin: specificare l'id del post da condividere");
+            return;
+        }
+
+        JSONObject req = new JSONObject();
+        req.put("user", currUsername);
+        req.put("post", args[1]);
+        req.put("op", OpCodes.REWIN_POST);
+        ComUtility.sendSync(req.toString(), socket);
+
+        JSONObject reply = new JSONObject(ComUtility.receive(socket));
+        ClientError.handleError("Il post e' stato rewinnato", reply.getInt("errCode"),
+                reply.getString("errMsg"));
     }
 
 
@@ -540,6 +566,8 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                 case "delete":
                     client.deletePost(currCommand);
                     break;
+                case "rewin":
+                    client.rewinPost(currCommand);
                 case "quit":
                     break;
                 default:

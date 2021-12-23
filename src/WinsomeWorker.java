@@ -99,17 +99,23 @@ public class WinsomeWorker implements Runnable {
         String toFollow = request.getJson().getString("toFollow");
         String follower = request.getJson().getString("user");
 
+        if (server.getFollowing().get(follower) != null && server.getFollowing().get(follower).contains(toFollow)) {
+            ComUtility.attachError(-1, "Stai gia' seguendo questo utente", key);
+            return;
+        }
+        if (!server.getUsers().containsKey(toFollow)) {
+            ComUtility.attachError(-2, "L'utente da seguire non esiste", key);
+            return;
+        }
         if (toFollow.equals(follower)) {
             ComUtility.attachError(-3, "Non puoi seguire te stess@", key);
             return;
         }
-
-        if (!server.getUsers().containsKey(toFollow)) {
-            ComUtility.attachError(-2, "L'utete da seguire non esiste", key);
+        String[] commonTags = getCommonTags(toFollow, follower);
+        if (commonTags.length == 0) {
+            ComUtility.attachError(-4, "L'utente da seguire non condivide alcun interesse con te", key);
             return;
         }
-
-        String[] commonTags = getCommonTags(toFollow, follower);
 
         ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
         if (!followers.containsKey(toFollow)) {
@@ -189,10 +195,13 @@ public class WinsomeWorker implements Runnable {
     public void viewBlog() {
         JSONObject reply = new JSONObject();
         String user = request.getJson().getString("user");
-        List<Post> userBlog = server.getAuthorPost().get(user);
+        List<Post> userBlog = new ArrayList<>();
 
-        if (userBlog == null)
-            userBlog = new ArrayList<>();
+        for (Post p : server.getPosts().values()) {
+            if (p.getAuthor().equals(user) || p.getRewinner().equals(user))
+                userBlog.add(p);
+        }
+
         Collections.sort(userBlog);
 
         reply.put("items", new Gson().toJson(userBlog));
@@ -255,7 +264,7 @@ public class WinsomeWorker implements Runnable {
         ConcurrentHashMap<Long, List<Comment>> comments = server.getComments();
         List<Post> userFeed = getFeed(user);
 
-        if (userPosts.get(user).contains(posts.get(post))) {
+        if (userPosts.get(user) != null && userPosts.get(user).contains(posts.get(post))) {
             ComUtility.attachError(-1, "Errore nell'aggiunta del commento: non puoi commentare i tuoi " +
                     "stessi post", request.getKey());
             return;
@@ -288,11 +297,13 @@ public class WinsomeWorker implements Runnable {
             List<Comment> comments = server.getComments().get(post);
             List<Vote> votes = server.getVotes().get(post);
 
-            for (Vote v : votes) {
-                if (v.isPositive())
-                    nPositive++;
-                else
-                    nNegative++;
+            if (votes != null) {
+                for (Vote v : votes) {
+                    if (v.isPositive())
+                        nPositive++;
+                    else
+                        nNegative++;
+                }
             }
 
             reply.put("errCode", 0);
@@ -342,12 +353,42 @@ public class WinsomeWorker implements Runnable {
     }
 
 
+    public synchronized void rewinPost() throws IOException {
+        JSONObject req = request.getJson();
+        String user = req.getString("user");
+        Long post = req.getLong("post");
+        List<Post> feed = getFeed(user);
+
+        if (!feed.contains(server.getPosts().get(post))) {
+            ComUtility.attachError(-1, "Il post da rewinnare non e' presente nel tuo feed.", request.getKey());
+            return;
+        }
+        for (Long p : server.getRewins().keySet()) {
+            for (Long p2 : server.getRewins().get(p)) {
+                if (server.getPosts().get(p2).getRewinner().equals(user)) {
+                    ComUtility.attachError(-2, "Hai gia' rewinnato questo post.", request.getKey());
+                    return;
+                }
+            }
+        }
+
+        // Post di rewin
+        Post toAdd = new Post(server.getPosts().get(post), user);
+        server.getRewins().computeIfAbsent(post, k -> new ArrayList<>());
+        server.getRewins().get(post).add(toAdd.getId());
+        server.getPosts().put(toAdd.getId(), toAdd);
+
+        ComUtility.attachAck(request.getKey());
+    }
+
+
     private List<Post> getFeed(String user) {
         List<Post> ret = new ArrayList<>();
+        List<String> following = server.getFollowing().get(user);
 
-        for (String following : server.getFollowing().get(user)) {
-            if (server.getAuthorPost().get(following) != null) {
-                ret.addAll(server.getAuthorPost().get(following));
+        for (Post p : server.getPosts().values()) {
+            if (following.contains(p.getAuthor()) || following.contains(p.getRewinner())) {
+                ret.add(p);
             }
         }
 
@@ -423,6 +464,9 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.DELETE_POST:
                     deletePost();
+                    break;
+                case OpCodes.REWIN_POST:
+                    rewinPost();
                     break;
                 default:
                     break;

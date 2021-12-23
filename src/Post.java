@@ -7,15 +7,18 @@ public class Post implements Comparable{
     private String author;
     private Timestamp timestamp;
     private boolean rewin;
+    private String rewinner;
     private int rewardAmount;
 
     private static long postId;
 
     public Post(String title, String content, String author) {
+        rewinner = "";
         init(title, content, author, false, 0);
     }
 
-    public Post(Post other) {
+    public Post(Post other, String rewinner) {
+        this.rewinner = rewinner;
         init(other.getTitle(), other.getContent(), other.getAuthor(), true, other.getRewardAmount());
     }
 
@@ -34,26 +37,21 @@ public class Post implements Comparable{
     public String getTitle() {
         return title;
     }
-
     public String getContent() {
         return content;
     }
-
     public String getAuthor() { return author; }
-
     public Timestamp getTimestamp() {
         return timestamp;
     }
-
     public int getRewardAmount() {
         return rewardAmount;
     }
-
     public boolean isRewin() {
         return rewin;
     }
-
     public long getId() { return id; }
+    public String getRewinner() {return rewinner;}
 
     public static void setMinId(long toSet) { Post.postId = toSet;}
 
