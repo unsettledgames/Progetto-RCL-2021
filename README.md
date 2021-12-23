@@ -6,13 +6,7 @@
   - View wallet
     - Convert wincoin to bitcoin
     - Convert wincoin to flat currency
-
-
-- Rewards
-  - Handled by the server
-  - Every once in a while, determine rewards depending on upvotes on posts / rewins
-
-
+    
 - Server
   - getWallet(): restituisce il totale corrente e i dettagli sulle transazioni
   - getWalletBitcoin(): si attacca a random.org per generare il tasso di cambio e convertire la valuta

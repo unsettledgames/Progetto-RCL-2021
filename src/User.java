@@ -4,7 +4,7 @@ public class User {
     private String username;
     private String password;
     private String[] tags;
-    private long wallet;
+    private double wallet;
 
     public User(String username, String password, String[] tags) {
         this.username = username;
@@ -23,8 +23,12 @@ public class User {
     public String[] getTags() {
         return tags;
     }
-    public long getWallet() {return wallet;}
-    public long getWalletBitcoin() {
+
+    public void addReward(double toAdd) {
+        this.wallet += toAdd;
+    }
+    public double getWallet() {return wallet;}
+    public double getWalletBitcoin() {
         // TODO: Connessione a random.org e conversione del valore del wallet
         return 0;
     }

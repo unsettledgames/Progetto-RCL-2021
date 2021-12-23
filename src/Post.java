@@ -54,6 +54,7 @@ public class Post implements Comparable{
     public String getRewinner() {return rewinner;}
 
     public static void setMinId(long toSet) { Post.postId = toSet;}
+    public void increaseRewardAmount(){this.rewardAmount++;}
 
     @Override
     public int compareTo(Object o) {

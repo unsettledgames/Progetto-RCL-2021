@@ -223,6 +223,9 @@ public class WinsomeWorker implements Runnable {
         JSONObject req = request.getJson();
         String author = req.getString("user");
         Long post = req.getLong("post");
+        if (server.getPosts().get(post).isRewin())
+            post = getOriginalPost(post);
+
         ConcurrentHashMap<Long, List<Vote>> votes = server.getVotes();
         List<Vote> currVotes = votes.get(post);
 

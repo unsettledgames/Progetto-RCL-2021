@@ -8,3 +8,11 @@ TCP_PORT: 6666
 REG_HOST: localhost
 # Porta del registry RMI
 REG_PORT: 6667
+
+# Intervallo di calcolo delle ricompense in millisecondi
+REWARD_RATE: 5000
+# Percentuale delle ricompense assegnate all'autore: il resto viene suddiviso tra i curatori
+REWARD_PERCENTAGE: 50
+
+# Intervallo di salvataggio del server
+AUTOSAVE_RATE: 5000

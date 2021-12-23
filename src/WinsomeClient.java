@@ -484,6 +484,34 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     }
 
 
+    public void wallet() throws IOException {
+        if (currUsername == null) {
+            System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
+            return;
+        }
+        JSONObject req = new JSONObject();
+
+        req.put("op", OpCodes.WALLET);
+        req.put("user", currUsername);
+        ComUtility.sendSync(req.toString(), socket);
+
+        JSONObject reply = new JSONObject(ComUtility.receive(socket));
+        if (ClientError.handleError("", reply.getInt("errCode"),
+                reply.getString("errMsg")) == 0) {
+            System.out.println("Importo totale: " + reply.getDouble("amount"));
+
+            TableList transactionOut = new TableList("Data", "Importo", "Causale").withUnicode(true);
+            List<Transaction> transactions = new Gson().fromJson(reply.getString("transactions"),
+                    new TypeToken<List<Transaction>>(){}.getType());
+
+            for (Transaction t : transactions)
+                transactionOut.addRow(t.getDate(), ""+t.getAmount(), t.getCausal());
+            System.out.println("Lista delle transazioni: ");
+            transactionOut.print();
+        }
+    }
+
+
     public void closeConnection() throws IOException {
         socket.close();
     }
@@ -568,6 +596,10 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                     break;
                 case "rewin":
                     client.rewinPost(currCommand);
+                    break;
+                case "wallet":
+                    client.wallet();
+                    break;
                 case "quit":
                     break;
                 default:

@@ -2,16 +2,19 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 public class ServerRewards extends Thread{
     private WinsomeServer server;
     private long rewardRateMillis;
     private Timestamp lastComputing;
+    private double authorPercentage;
 
-    public ServerRewards(WinsomeServer server, long rewardRateMillis) {
+    public ServerRewards(WinsomeServer server, long rewardRateMillis, double authorPercentage) {
+        this.authorPercentage = authorPercentage;
         this.server = server;
         this.rewardRateMillis = rewardRateMillis;
-        this.lastComputing = new Timestamp(System.currentTimeMillis());
+        this.lastComputing = new Timestamp(0);
     }
 
     public void run() {
@@ -29,29 +32,77 @@ public class ServerRewards extends Thread{
 
     private synchronized void calculateRewards() {
         int postRating = 0;
-        int nComments = 0;
-        HashMap<String, Integer> comments = new HashMap<String, Integer>();
+        int totComments = 0;
+        int totPositiveRatings = 0;
 
-        for (Post p : server.getPosts().values()) {
-            // Nuovi voti dall'ultimo calcolo
-            for (Vote v : server.getVotes().get(p.getId()))
-                if (v.getTimestamp().after(lastComputing))
-                    postRating += v.getValue();
+        HashMap<String, Integer> comments = new HashMap<>();
+        HashMap<String, Integer> raters = new HashMap<>();
 
-            // Nuovi commenti dall'ultimo calcolo
-            for (Comment c : server.getComments().get(p.getId())) {
-                if (c.getTimestamp().after(lastComputing)) {
-                    nComments++;
-                    comments.putIfAbsent(c.getUser(), 0);
-                    comments.replace(c.getUser(), comments.get(c.getUser()) + 1);
+        // Ciclo all'interno dei post originali così da gestire con più facilità i rewin
+        for (List<Post> postList : server.getAuthorPost().values()) {
+            for (Post p : postList) {
+                Long postId = p.getId();
+                // Nuovi voti dall'ultimo calcolo
+                if (server.getVotes().get(postId) != null) {
+                    for (Vote v : server.getVotes().get(postId)) {
+                        // Tieni traccia degli utenti che hanno votato positivamente
+                        if (v.getTimestamp().after(lastComputing)) {
+                            if (v.getValue() > 0) {
+                                totPositiveRatings++;
+                                raters.putIfAbsent(v.getUser(), 0);
+                                raters.replace(v.getUser(), raters.get(v.getUser()) + 1);
+                            }
+
+                            // Tieni traccia del rating totale del post
+                            postRating += v.getValue();
+                        }
+                    }
+                }
+
+                // Nuovi commenti dall'ultimo calcolo
+                if (server.getComments().get(postId) != null) {
+                    for (Comment c : server.getComments().get(postId)) {
+                        // Tieni traccia del numero totale di commenti e degli utenti che hanno commentato
+                        if (c.getTimestamp().after(lastComputing)) {
+                            totComments++;
+                            comments.putIfAbsent(c.getUser(), 0);
+                            comments.replace(c.getUser(), comments.get(c.getUser()) + 1);
+                        }
+                    }
+                }
+
+                // Calcola la parte della formula relativa ai commenti
+                int commentPart = 0;
+                for (String user : comments.keySet()) {
+                    commentPart += (2 / (1 + Math.exp(-(comments.get(user)-1))));
+                }
+
+                // Calcolo della ricompensa
+                double reward = (Math.log(Math.max(postRating, 0) + 1) + Math.log(commentPart + 1)) / p.getRewardAmount();
+                p.increaseRewardAmount();
+
+                // Divisione della ricompensa tra autore e curatori
+                double author = (reward / 100) * authorPercentage;
+                double curator = reward - author;
+                double curatorFraction = curator / (totComments + totPositiveRatings);
+
+                // Accredito della ricompensa all'autore
+                server.getUsers().get(p.getAuthor()).addReward(author);
+
+                // TODO: aggiungi dettagli della transazione per ogni accredito
+
+                // Accredito della ricompensa ai curatori: i curatori si dividono i ricavi in parti uguali
+                for (String user : comments.keySet()) {
+                    server.getUsers().get(user).addReward(curatorFraction * comments.get(user));
+                }
+                for (String user : raters.keySet()) {
+                    server.getUsers().get(user).addReward(curatorFraction * raters.get(user));
                 }
             }
-
-            // Numero di iterazioni dall'ultima volta
-            // Attenzione alla gestione dei rewin
         }
 
         // Aggiorno il tempo dell'ultimo calcolo
         lastComputing = new Timestamp(System.currentTimeMillis());
+
     }
 }
