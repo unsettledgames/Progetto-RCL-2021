@@ -5,26 +5,38 @@ import org.json.JSONObject;
 
 import java.io.*;
 import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
-import java.nio.*;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ServerPersistence extends Thread {
-    private long updateRateMillis;
-    private String fileName;
-    private WinsomeServer server;
+    // Intervallo di salvataggio del server
+    private final long updateRateMillis;
+    // Nome del file di salvataggio
+    private final String fileName;
+    // Server da salvare
+    private final WinsomeServer server;
 
+    /** Semplice costruttore in cui si assegnano gli attributi necessari
+     *
+     * @param toSave Server da salvare
+     * @param fileName Nome del file di salvataggio
+     * @param updateRateMillis Intervallo di salvataggio
+     */
     public ServerPersistence(WinsomeServer toSave, String fileName, long updateRateMillis) {
         this.updateRateMillis = updateRateMillis;
         this.server = toSave;
         this.fileName = fileName;
     }
 
+    /**
+     *
+     * @param fileName
+     * @param toLoad
+     * @throws IOException
+     */
     public static void loadServer(String fileName, WinsomeServer toLoad) throws IOException {
         try {
             JSONObject json = new JSONObject(Files.readString(Paths.get(fileName)));

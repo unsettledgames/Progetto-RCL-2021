@@ -1,19 +1,18 @@
 import org.json.JSONObject;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
 public class ComUtility {
-    public static void attachError(int code, String message, SelectionKey key) throws IOException {
+    public static void attachError(int code, String message, SelectionKey key) {
         JSONObject response = new JSONObject();
         response.put("errCode", code);
         response.put("errMsg", message);
         key.attach(response.toString());
     }
 
-    public static void attachAck(SelectionKey key) throws IOException {
+    public static void attachAck(SelectionKey key) {
         JSONObject response = new JSONObject();
         response.put("errCode", 0);
         response.put("errMsg", "OK");
