@@ -1,22 +1,5 @@
 # Progetto-RCL-2021
 
-## TODO
-
-- User operations
-  - View wallet
-    - Convert wincoin to bitcoin
-    - Convert wincoin to flat currency
-    
-- Server
-  - getWallet(): restituisce il totale corrente e i dettagli sulle transazioni
-  - getWalletBitcoin(): si attacca a random.org per generare il tasso di cambio e convertire la valuta
-
-- Client
-  - wallet
-
-## Roadmap
-- Ricompense
-
 ## POLISH
 - Rendi la parte di notifica dei follower indipendente tramite oggetti dedicati
 - Magari uniforma le strutture dati in modo che contengano solo id invece che oggetti (tranne quelle che usano come chiavi gli id e come valori gli oggetti)
@@ -27,5 +10,3 @@
 - Impedire registrazione quando si è loggati
 - Rimuovi accenti
 - Commenti
-## DEBUGGING
-- Rintraccia interazioni parziali (errori che avvengono ma viene parzialmente alterato lo stato del server)

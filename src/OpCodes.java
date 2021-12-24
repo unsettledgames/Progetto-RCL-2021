@@ -15,4 +15,5 @@ public class OpCodes {
     public static final int DELETE_POST =       13;
     public static final int REWIN_POST =        14;
     public static final int WALLET =            15;
+    public static final int WALLET_BTC =        16;
 }

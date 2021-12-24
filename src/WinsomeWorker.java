@@ -2,7 +2,11 @@ import com.google.gson.Gson;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.Socket;
+import java.net.URL;
 import java.nio.channels.SelectionKey;
+import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -223,6 +227,7 @@ public class WinsomeWorker implements Runnable {
         JSONObject req = request.getJson();
         String author = req.getString("user");
         Long post = req.getLong("post");
+        Long originalPost = post;
         if (server.getPosts().get(post).isRewin())
             post = getOriginalPost(post);
 
@@ -237,7 +242,7 @@ public class WinsomeWorker implements Runnable {
                 }
             }
         }
-        if (!getFeed(author).contains(server.getPosts().get(post))) {
+        if (!getFeed(author).contains(server.getPosts().get(originalPost))) {
             ComUtility.attachError(-2, "Errore di votazione: non puoi votare un post che non fa " +
                     "parte del tuo feed", request.getKey());
             return;
@@ -306,7 +311,8 @@ public class WinsomeWorker implements Runnable {
             // Aggiungi anche i commenti ai rewin
             if (server.getRewins().get(post) != null) {
                 for (Long p : server.getRewins().get(post)) {
-                    comments.addAll(server.getComments().get(p));
+                    if (server.getComments().get(p) != null)
+                        comments.addAll(server.getComments().get(p));
                 }
             }
 
@@ -395,16 +401,59 @@ public class WinsomeWorker implements Runnable {
     }
 
 
+    public void wallet() {
+        JSONObject req = request.getJson();
+        String user = req.getString("user");
+        JSONObject reply = new JSONObject();
+
+        reply.put("errCode", 0);
+        reply.put("errMsg", "OK");
+        reply.put("amount", server.getUser(user).getWallet());
+        reply.put("transactions", new Gson().toJson(server.getUsers().get(user).getTransactions()));
+
+        request.getKey().attach(reply.toString());
+    }
+
+
+    public void walletBtc() throws IOException {
+        JSONObject req = request.getJson();
+        String user = req.getString("user");
+        JSONObject reply = new JSONObject();
+        Double amount = server.getUser(user).getWallet();
+
+        URL url = new URL("https://www.random.org/decimal-fractions/?num=1&dec=10&col=1&format=plain&rnd=new");
+        InputStreamReader reader = new InputStreamReader(url.openStream(), StandardCharsets.UTF_8);
+        StringBuilder randomNumber = new StringBuilder();
+
+        int c;
+        while ((c = reader.read()) > 0) {
+            randomNumber.append((char)c);
+        }
+
+        double factor = Double.parseDouble(randomNumber.toString());
+
+        reply.put("errCode", 0);
+        reply.put("errMsg", "OK");
+        reply.put("btc", server.getUser(user).getWallet() * factor);
+
+        request.getKey().attach(reply.toString());
+    }
+
+
     private List<Post> getFeed(String user) {
         List<Post> ret = new ArrayList<>();
         List<String> following = server.getFollowing().get(user);
 
-        for (Post p : server.getPosts().values()) {
-            // Se voglio il blog non includo i rewin
-            if (following.contains(p.getAuthor()) || following.contains(p.getRewinner())) {
-                ret.add(p);
+        if (following != null) {
+            for (Post p : server.getPosts().values()) {
+                // Se voglio il blog non includo i rewin
+                if (following.contains(p.getAuthor()) || following.contains(p.getRewinner())) {
+                    ret.add(p);
+                }
             }
         }
+        else
+            following = new ArrayList<>();
 
         Collections.sort(ret);
 
@@ -499,6 +548,12 @@ public class WinsomeWorker implements Runnable {
                     break;
                 case OpCodes.REWIN_POST:
                     rewinPost();
+                    break;
+                case OpCodes.WALLET:
+                    wallet();
+                    break;
+                case OpCodes.WALLET_BTC:
+                    walletBtc();
                     break;
                 default:
                     break;

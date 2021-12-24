@@ -10,9 +10,9 @@ REG_HOST: localhost
 REG_PORT: 6667
 
 # Intervallo di calcolo delle ricompense in millisecondi
-REWARD_RATE: 5000
+REWARD_RATE: 3000
 # Percentuale delle ricompense assegnate all'autore: il resto viene suddiviso tra i curatori
 REWARD_PERCENTAGE: 50
 
 # Intervallo di salvataggio del server
-AUTOSAVE_RATE: 5000
+AUTOSAVE_RATE: 2000

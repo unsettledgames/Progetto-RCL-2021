@@ -41,62 +41,68 @@ public class ServerRewards extends Thread{
         // Ciclo all'interno dei post originali così da gestire con più facilità i rewin
         for (List<Post> postList : server.getAuthorPost().values()) {
             for (Post p : postList) {
-                Long postId = p.getId();
-                // Nuovi voti dall'ultimo calcolo
-                if (server.getVotes().get(postId) != null) {
-                    for (Vote v : server.getVotes().get(postId)) {
-                        // Tieni traccia degli utenti che hanno votato positivamente
-                        if (v.getTimestamp().after(lastComputing)) {
-                            if (v.getValue() > 0) {
-                                totPositiveRatings++;
-                                raters.putIfAbsent(v.getUser(), 0);
-                                raters.replace(v.getUser(), raters.get(v.getUser()) + 1);
+                if (!p.isRewin()) {
+                    Long postId = p.getId();
+                    // Nuovi voti dall'ultimo calcolo
+                    if (server.getVotes().get(postId) != null) {
+                        for (Vote v : server.getVotes().get(postId)) {
+                            // Tieni traccia degli utenti che hanno votato positivamente
+                            if (v.getTimestamp().after(lastComputing)) {
+                                if (v.getValue() > 0) {
+                                    totPositiveRatings++;
+                                    raters.putIfAbsent(v.getUser(), 0);
+                                    raters.replace(v.getUser(), raters.get(v.getUser()) + 1);
+                                }
+
+                                // Tieni traccia del rating totale del post
+                                postRating += v.getValue();
                             }
-
-                            // Tieni traccia del rating totale del post
-                            postRating += v.getValue();
                         }
                     }
-                }
 
-                // Nuovi commenti dall'ultimo calcolo
-                if (server.getComments().get(postId) != null) {
-                    for (Comment c : server.getComments().get(postId)) {
-                        // Tieni traccia del numero totale di commenti e degli utenti che hanno commentato
-                        if (c.getTimestamp().after(lastComputing)) {
-                            totComments++;
-                            comments.putIfAbsent(c.getUser(), 0);
-                            comments.replace(c.getUser(), comments.get(c.getUser()) + 1);
+                    // Nuovi commenti dall'ultimo calcolo
+                    if (server.getComments().get(postId) != null) {
+                        for (Comment c : server.getComments().get(postId)) {
+                            // Tieni traccia del numero totale di commenti e degli utenti che hanno commentato
+                            if (c.getTimestamp().after(lastComputing)) {
+                                totComments++;
+                                comments.putIfAbsent(c.getUser(), 0);
+                                comments.replace(c.getUser(), comments.get(c.getUser()) + 1);
+                            }
                         }
                     }
-                }
 
-                // Calcola la parte della formula relativa ai commenti
-                int commentPart = 0;
-                for (String user : comments.keySet()) {
-                    commentPart += (2 / (1 + Math.exp(-(comments.get(user)-1))));
-                }
+                    // Calcola la parte della formula relativa ai commenti
+                    int commentPart = 0;
+                    for (String user : comments.keySet()) {
+                        commentPart += (2 / (1 + Math.exp(-(comments.get(user) - 1))));
+                    }
 
-                // Calcolo della ricompensa
-                double reward = (Math.log(Math.max(postRating, 0) + 1) + Math.log(commentPart + 1)) / p.getRewardAmount();
-                p.increaseRewardAmount();
+                    // Calcolo della ricompensa
+                    double reward = (Math.log(Math.max(postRating, 0) + 1) + Math.log(commentPart + 1)) / p.getRewardAmount();
+                    p.increaseRewardAmount();
 
-                // Divisione della ricompensa tra autore e curatori
-                double author = (reward / 100) * authorPercentage;
-                double curator = reward - author;
-                double curatorFraction = curator / (totComments + totPositiveRatings);
+                    if (reward > 0) {
+                        // Divisione della ricompensa tra autore e curatori
+                        double author = (reward / 100) * authorPercentage;
+                        double curator = reward - author;
+                        double curatorFraction = curator / (totComments + totPositiveRatings);
 
-                // Accredito della ricompensa all'autore
-                server.getUsers().get(p.getAuthor()).addReward(author);
+                        System.out.println("Ricompensa: " + author + ", " + curatorFraction);
 
-                // TODO: aggiungi dettagli della transazione per ogni accredito
+                        // Accredito della ricompensa all'autore
+                        server.getUsers().get(p.getAuthor()).addReward(new Transaction("Ricompensa autore", author, p.getId()));
 
-                // Accredito della ricompensa ai curatori: i curatori si dividono i ricavi in parti uguali
-                for (String user : comments.keySet()) {
-                    server.getUsers().get(user).addReward(curatorFraction * comments.get(user));
-                }
-                for (String user : raters.keySet()) {
-                    server.getUsers().get(user).addReward(curatorFraction * raters.get(user));
+                        // Accredito della ricompensa ai curatori: i curatori si dividono i ricavi in parti uguali
+                        for (String user : comments.keySet()) {
+                            server.getUsers().get(user).addReward(new Transaction("Ricompensa autore",
+                                    curatorFraction * comments.get(user), p.getId()));
+                        }
+                        for (String user : raters.keySet()) {
+                            server.getUsers().get(user).addReward(new Transaction("Ricompensa autore",
+                                    curatorFraction * raters.get(user), p.getId()));
+                        }
+                    }
                 }
             }
         }

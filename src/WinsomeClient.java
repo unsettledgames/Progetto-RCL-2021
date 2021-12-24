@@ -19,6 +19,7 @@ import java.rmi.server.RemoteObject;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -484,30 +485,46 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     }
 
 
-    public void wallet() throws IOException {
+    public void wallet(String command) throws IOException {
         if (currUsername == null) {
             System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
             return;
         }
+        String[] args = getStringArgs(command, 0);
         JSONObject req = new JSONObject();
 
-        req.put("op", OpCodes.WALLET);
-        req.put("user", currUsername);
-        ComUtility.sendSync(req.toString(), socket);
+        if (args.length == 1) {
+            req.put("op", OpCodes.WALLET);
+            req.put("user", currUsername);
+            ComUtility.sendSync(req.toString(), socket);
 
-        JSONObject reply = new JSONObject(ComUtility.receive(socket));
-        if (ClientError.handleError("", reply.getInt("errCode"),
-                reply.getString("errMsg")) == 0) {
-            System.out.println("Importo totale: " + reply.getDouble("amount"));
+            JSONObject reply = new JSONObject(ComUtility.receive(socket));
+            if (ClientError.handleError("", reply.getInt("errCode"),
+                    reply.getString("errMsg")) == 0) {
+                TableList transactionOut = new TableList("Data", "Importo", "Causale").withUnicode(true);
+                List<Transaction> transactions = new Gson().fromJson(reply.getString("transactions"),
+                        new TypeToken<List<Transaction>>() {
+                        }.getType());
+                DecimalFormat twoDigits = new DecimalFormat("0.00");
 
-            TableList transactionOut = new TableList("Data", "Importo", "Causale").withUnicode(true);
-            List<Transaction> transactions = new Gson().fromJson(reply.getString("transactions"),
-                    new TypeToken<List<Transaction>>(){}.getType());
+                System.out.println("Totale nel portafoglio: " + twoDigits.format(reply.getDouble("amount")) + " wincoins");
+                for (Transaction t : transactions)
+                    transactionOut.addRow(t.getDate(), "" + twoDigits.format(t.getAmount()), t.getCausal());
+                System.out.println("Lista delle transazioni: ");
+                transactionOut.print();
+            }
+        }
+        else if (args.length > 1 && args[1].equals("btc")) {
+            req.put("op", OpCodes.WALLET_BTC);
+            req.put("user", currUsername);
+            ComUtility.sendSync(req.toString(), socket);
 
-            for (Transaction t : transactions)
-                transactionOut.addRow(t.getDate(), ""+t.getAmount(), t.getCausal());
-            System.out.println("Lista delle transazioni: ");
-            transactionOut.print();
+            JSONObject reply = new JSONObject(ComUtility.receive(socket));
+            System.out.println("Totale nel portafoglio in Bitcoin: " +
+                new DecimalFormat("0.00").format(reply.getDouble("btc")));
+        }
+        else {
+            System.err.println("Errore di visualizzazione del portafogli: valuta di conversione non supportata");
         }
     }
 
@@ -548,7 +565,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
         String currCommand = "";
 
         // Finché l'utente non decide di uscire, leggi un comando alla volta ed eseguilo
-        while (!currCommand.equals("quit")) {
+        while (!currCommand.startsWith("quit")) {
             // Leggi il comando
             currCommand = reader.readLine();
 
@@ -598,7 +615,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                     client.rewinPost(currCommand);
                     break;
                 case "wallet":
-                    client.wallet();
+                    client.wallet(currCommand);
                     break;
                 case "quit":
                     break;
