@@ -1,6 +1,7 @@
 # Progetto-RCL-2021
 
 ## POLISH
+- Usa le funzioni di ClientError invece che stampare manualmente le tabelle
 - Rendi la parte di notifica dei follower indipendente tramite oggetti dedicati
 - Magari uniforma le strutture dati in modo che contengano solo id invece che oggetti (tranne quelle che usano come chiavi gli id e come valori gli oggetti)
 - Rimuovi più synchronized possibili
@@ -9,4 +10,3 @@
 - Isolare il più possibile le eccezioni (eliminare throws nelle funzioni che usano ComUtility per esempio)
 - Impedire registrazione quando si è loggati
 - Rimuovi accenti
-- Commenti

@@ -6,11 +6,14 @@ import org.json.JSONObject;
 import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** ServerPersistence è la classe, pensata per essere usata come thread indipendente, che si occupa di salvare lo stato
+ *  del server a intervalli di tempo regolari. La classe mette inoltre a disposizione un metodo statico usato per
+ *  caricare lo stato del server da file in formato json (generato precedentemente dalla stessa ServerPersistence).
+ */
 public class ServerPersistence extends Thread {
     // Intervallo di salvataggio del server
     private final long updateRateMillis;
@@ -31,13 +34,12 @@ public class ServerPersistence extends Thread {
         this.fileName = fileName;
     }
 
-    /**
+    /** Carica il server passato come parametro
      *
-     * @param fileName
-     * @param toLoad
-     * @throws IOException
+     * @param fileName Nome del file conenente i dati del server
+     * @param toLoad Nome del server i cui dati devono essere recuperati
      */
-    public static void loadServer(String fileName, WinsomeServer toLoad) throws IOException {
+    public static void loadServer(String fileName, WinsomeServer toLoad) {
         try {
             JSONObject json = new JSONObject(Files.readString(Paths.get(fileName)));
             Gson gson = new Gson();
@@ -71,14 +73,17 @@ public class ServerPersistence extends Thread {
             if (json.has("rewins"))
                 toLoad.setRewins(gson.fromJson(json.getString("rewins"), type));
         }
-        catch (NoSuchFileException e) {
-            System.err.println("File di persistenza non trovato, il server verrà caricato senza dati precedenti.");
-        }
-        catch (JSONException e) {
+        catch (IOException e) {
+            System.err.println("Errore di lettura del file di persistenza, il server verrà caricato senza dati precedenti");
+        } catch (JSONException e) {
             System.err.println("File di persistenza corrotto, il server verrà caricato con informazioni parziali.");
         }
     }
 
+    /** Ciclo di salvataggio dei dati: il server, a ogni iterazione, salva il contenuto del server su file e aspetta
+     *  un certo periodo di tempo specificato al momento della creazione del thread.
+     *
+     */
     public void run() {
         while (true) {
             // Prepara utility per json

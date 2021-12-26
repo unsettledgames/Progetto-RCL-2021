@@ -37,13 +37,33 @@
 
 public class ClientError {
 
+    /** In caso di successo stampa successPhrase, altrimenti stampa il messaggio di errore corrispondente al codice
+     *  passato come parametro
+     *
+     * @param successPhrase Frase di feedback che indica il successo dell'operazione
+     * @param error Codice di errore dell'operazione che si intende gestire
+     * @param message Messaggio di errore corrispondente al codice appena descritto
+     *
+     * @return 0 se non ci sono stati errori, -1 altrimenti
+     */
     public static int handleError(String successPhrase, int error, String message) {
+        // Stampa la frase di successo solamente se non ci sono stati errori
         if (ClientError.printError(error, message) == 0) {
             System.out.println(successPhrase);
             return 0;
         }
+        // Altrimenti notifica il chiamante del fallimento
         return -1;
     }
+
+    /** In caso di successo stampa una tabella contenente dei dati di resoconto, altrimenti stampa il messaggio
+     *  di errore corrispondente al codice passato come parametro
+     *
+     * @param toPrint La tabella di resoconto da stampare
+     * @param error Codice di errore dell'ultima operazione eseguita
+     * @param message Messaggio di errore corrispondente al codice
+     * @return 0 in caso di successo, -1 altrimenti
+     */
     public static int handleError(TableList toPrint, int error, String message) {
         if (ClientError.printError(error, message) == 0) {
             toPrint.print();
@@ -51,6 +71,16 @@ public class ClientError {
         }
         return -1;
     }
+
+    /** In caso di successo stampa una tabella contenente dei dati di resoconto e una frase di successo, altrimenti
+     *  stampa il messaggio di errore corrispondente al codice passato come parametro
+     *
+     * @param successPhrase Frase di feedback che indica il successo dell'operazione
+     * @param toPrint La tabella di resoconto da stampare
+     * @param error Codice di errore dell'ultima operazione eseguita
+     * @param message Messaggio di errore corrispondente al codice
+     * @return 0 in caso di successo, -1 altrimenti
+     */
     public static int handleError(String successPhrase, TableList toPrint, int error, String message) {
         if (ClientError.printError(error, message) == 0) {
             System.out.println(successPhrase);
@@ -60,7 +90,12 @@ public class ClientError {
         return -1;
     }
 
-
+    /** Funzione di utility della classe che stampa un messaggio e un codice di errore
+     *
+     * @param errCode Codice dell'errore
+     * @param message Messaggio di errore corrispondente al codice
+     * @return 0 in caso di successo, -1 altrimenti
+     */
     private static int printError(int errCode, String message) {
         if (errCode == 0)
             return 0;
