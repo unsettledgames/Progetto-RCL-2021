@@ -43,6 +43,8 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     private final IRemoteClient clientStub;
     // Socket con cui si comunica con il server
     private SocketChannel socket;
+    // Socket con cui si ricevono le notifiche dal server
+    private MulticastSocket mcSocket;
 
     // Dati di sessione
     // Username dell'utente loggato al momento: se non è ancora loggato, contiene la stringa vuota
@@ -203,6 +205,11 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                     catch (NotBoundException e) {
                         System.err.println("Registrazione al servizio di notifica fallito");
                     }
+
+                    // Registrazione al servizio di notifiche per il calcolo delle ricompense
+                    InetAddress address = InetAddress.getByName(response.getString("mcAddress"));
+                    this.mcSocket = new MulticastSocket(response.getInt("mcPort"));
+                    mcSocket.joinGroup(address);
                 }
             }
             catch (IOException e) {
@@ -643,43 +650,55 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
             return;
         }
 
+        // Recupero gli argomenti (minimo 2, ovvero la scritta post e l'id del post da vedere
         String[] args = getStringArgs(command, 2);
         if (args == null) {
             System.err.println("Errore di visualizzazione del post: troppi pochi parametri");
         }
         else {
+            // Preparazione della richiesta
             JSONObject req = new JSONObject();
             TableList out = new TableList("Id post", "Titolo", "Contenuto", "Upvotes", "Downvotes").withUnicode(true);
             req.put("op", OpCodes.SHOW_POST);
             req.put("user", currUsername);
             req.put("post", Long.parseLong(args[2]));
 
-            ComUtility.sendSync(req.toString(), socket);
-            JSONObject reply = new JSONObject(ComUtility.receive(socket));
+            try {
+                ComUtility.sendSync(req.toString(), socket);
+                JSONObject reply = new JSONObject(ComUtility.receive(socket));
 
-            if (ClientError.handleError("Dettagli post " + args[2] + ": ",
-                    reply.getInt("errCode"), reply.getString("errMsg")) == 0) {
+                // Se la richiesta è andata a buon fine
+                if (ClientError.handleError("Dettagli post " + args[2] + ": ",
+                        reply.getInt("errCode"), reply.getString("errMsg")) == 0) {
 
-                List<Comment> comments = new Gson().fromJson(reply.getString("comments"),
-                        new TypeToken<List<Comment>>(){}.getType());
-                out.addRow(args[2], reply.getString("title"), reply.getString("content"),
-                        ""+reply.getInt("nUpvotes"), ""+reply.getInt("nDownvotes"));
-                out.print();
+                    // Recupera la lista di commenti dal post
+                    List<Comment> comments = new Gson().fromJson(reply.getString("comments"),
+                            new TypeToken<List<Comment>>() {
+                            }.getType());
+                    // Stampa i dettagli del post
+                    out.addRow(args[2], reply.getString("title"), reply.getString("content"),
+                            "" + reply.getInt("nUpvotes"), "" + reply.getInt("nDownvotes"));
+                    out.print();
 
-                System.out.println("Commenti: ");
-                TableList commentTable = new TableList("Autore", "Commento").withUnicode(true);
+                    // Se ci sono dei commenti, stampali
+                    if (comments != null) {
+                        System.out.println("Commenti: ");
+                        TableList commentTable = new TableList("Autore", "Commento").withUnicode(true);
 
-                if (comments != null) {
-                    for (Comment c : comments)
-                        commentTable.addRow(c.getUser(), c.getContent());
-                    commentTable.print();
+                        for (Comment c : comments)
+                            commentTable.addRow(c.getUser(), c.getContent());
+                        commentTable.print();
+                    }
                 }
+            }
+            catch (IOException e) {
+                System.err.println("Errore di comunicazione tra client e server");
             }
         }
     }
 
 
-    /**
+    /** Implementa l'eliminazione di un post
      *
      * @param command Comando contenente i parametri della funzione list
      */
@@ -689,26 +708,35 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
             return;
         }
 
+        // Estrazione dei parametri (minimo 1, l'id del post da cancellare)
         String[] args = getStringArgs(command, 1);
         if (args == null) {
             System.err.println("Errore di eliminazione: id del post da cancellare mancante");
             return;
         }
 
+        // Preparo la richiesta
         JSONObject req = new JSONObject();
         req.put("user", currUsername);
         req.put("op", OpCodes.DELETE_POST);
         req.put("post", Long.parseLong(args[1]));
-        ComUtility.sendSync(req.toString(), socket);
 
-        JSONObject reply = new JSONObject(ComUtility.receive(socket));
-        ClientError.handleError("Post eliminato", reply.getInt("errCode"), reply.getString("errMsg"));
+        try {
+            // Invio la richiesta, ricevo la risposta e gestisco l'errore
+            ComUtility.sendSync(req.toString(), socket);
+
+            JSONObject reply = new JSONObject(ComUtility.receive(socket));
+            ClientError.handleError("Post eliminato", reply.getInt("errCode"), reply.getString("errMsg"));
+        }
+        catch (IOException e) {
+            System.err.println("Errore di comunicazione tra client e server");
+        }
     }
 
 
-    /**
+    /** Implementa il rewin di un post
      *
-     * @param command Comando contenente i parametri della funzione list
+     * @param command Comando contenente i parametri della funzione rewin
      */
     public void rewinPost(String command) {
         if (currUsername == null) {
@@ -716,25 +744,39 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
             return;
         }
 
+        // Ottenimento dei parametri (minimo 1, l'id del post da rewinnare)
         String[] args = getStringArgs(command, 1);
         if (args == null) {
             System.err.println("Errore di rewin: specificare l'id del post da condividere");
             return;
         }
 
+        // Preparazione della richiesta
         JSONObject req = new JSONObject();
         req.put("user", currUsername);
         req.put("post", args[1]);
         req.put("op", OpCodes.REWIN_POST);
-        ComUtility.sendSync(req.toString(), socket);
 
-        JSONObject reply = new JSONObject(ComUtility.receive(socket));
-        ClientError.handleError("Il post e' stato rewinnato", reply.getInt("errCode"),
-                reply.getString("errMsg"));
+        try {
+            // Invio la richiesta, ricevo la risposta e gestisco l'errore
+            ComUtility.sendSync(req.toString(), socket);
+
+            JSONObject reply = new JSONObject(ComUtility.receive(socket));
+            ClientError.handleError("Il post e' stato rewinnato", reply.getInt("errCode"),
+                    reply.getString("errMsg"));
+        }
+        catch (IOException e) {
+            System.err.println("Errore di comunicazione tra client e server");
+        }
     }
 
 
-    public void wallet(String command) throws IOException {
+    /** Funzione che implementa la visualizzazione del wallet, sia in Wincoins includendo le transazioni, che
+     *  in Bitcoin visualizzando solo l'importo corrente.
+     *
+     * @param command Comando contenente i parametri della funzione wallet
+     */
+    public void wallet(String command) {
         if (currUsername == null) {
             System.err.println("Non sei loggat@. Esegui l'accesso per completare l'operazione.");
             return;
@@ -742,140 +784,199 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
         String[] args = getStringArgs(command, 0);
         JSONObject req = new JSONObject();
 
+        // Se ho un argomento solo (il nome del comando), stampo valore totale del portafoglio e storico delle transazioni
         if (args.length == 1) {
+            // Preparazione della richiesta
             req.put("op", OpCodes.WALLET);
             req.put("user", currUsername);
-            ComUtility.sendSync(req.toString(), socket);
+            try {
+                // Invio della richiesta
+                ComUtility.sendSync(req.toString(), socket);
+                // Ricezione della risposta
+                JSONObject reply = new JSONObject(ComUtility.receive(socket));
 
-            JSONObject reply = new JSONObject(ComUtility.receive(socket));
-            if (ClientError.handleError("", reply.getInt("errCode"),
-                    reply.getString("errMsg")) == 0) {
-                TableList transactionOut = new TableList("Data", "Importo", "Causale").withUnicode(true);
-                List<Transaction> transactions = new Gson().fromJson(reply.getString("transactions"),
-                        new TypeToken<List<Transaction>>() {
-                        }.getType());
-                DecimalFormat twoDigits = new DecimalFormat("0.00");
+                // Verifico la presenza di errori
+                if (ClientError.handleError("", reply.getInt("errCode"),
+                        reply.getString("errMsg")) == 0) {
+                    // Se non si sono verificati errori, estraggo lo storico delle transazioni
+                    TableList transactionOut = new TableList("Data", "Importo", "Causale").withUnicode(true);
+                    List<Transaction> transactions = new Gson().fromJson(reply.getString("transactions"),
+                            new TypeToken<List<Transaction>>() {
+                            }.getType());
+                    // Formattatore dei valori float
+                    DecimalFormat twoDigits = new DecimalFormat("0.00");
 
-                System.out.println("Totale nel portafoglio: " + twoDigits.format(reply.getDouble("amount")) + " wincoins");
-                for (Transaction t : transactions)
-                    transactionOut.addRow(t.getDate(), "" + twoDigits.format(t.getAmount()), t.getCausal());
-                System.out.println("Lista delle transazioni: ");
-                transactionOut.print();
+                    // Stampa del totale
+                    System.out.println("Totale nel portafoglio: " + twoDigits.format(reply.getDouble("amount")) + " wincoins");
+                    // Stampa delle transazioni
+                    for (Transaction t : transactions)
+                        transactionOut.addRow(t.getDate(), "" + twoDigits.format(t.getAmount()), t.getCausal());
+                    System.out.println("Lista delle transazioni: ");
+                    transactionOut.print();
+                }
+            }
+            catch (IOException e) {
+                System.err.println("Errore di comunicazione tra client e server");
             }
         }
+        // Altrimenti, se l'ultimo valore e' la stringa "btc", converto il valore del portafoglio in bitcoin
         else if (args.length > 1 && args[1].equals("btc")) {
+            // Preparo la richiesta
             req.put("op", OpCodes.WALLET_BTC);
             req.put("user", currUsername);
-            ComUtility.sendSync(req.toString(), socket);
 
-            JSONObject reply = new JSONObject(ComUtility.receive(socket));
-            System.out.println("Totale nel portafoglio in Bitcoin: " +
-                new DecimalFormat("0.00").format(reply.getDouble("btc")));
+            // Invio la richiesta, ricevo la risposta, gestisco l'errore e se non se ne sono verificati, stampo il
+            // valore del portafoglio in bitcoin
+            try {
+                ComUtility.sendSync(req.toString(), socket);
+
+                JSONObject reply = new JSONObject(ComUtility.receive(socket));
+                System.out.println("Totale nel portafoglio in Bitcoin: " +
+                        new DecimalFormat("0.00").format(reply.getDouble("btc")));
+            }
+            catch (IOException e) {
+                System.err.println("Errore di comunicazione tra client e server");
+            }
         }
         else {
-            System.err.println("Errore di visualizzazione del portafogli: valuta di conversione non supportata");
+            System.err.println("Errore di visualizzazione del portafoglio: valuta di conversione non supportata");
         }
     }
 
 
-    public void closeConnection() throws IOException {
-        socket.close();
+    /** Permette di chiudere la connessione con il server
+     *
+     */
+    public void closeConnection() {
+        try {
+            socket.close();
+        }
+        catch (IOException e) {
+            System.err.println("Impossibile chiudere la connessione con il server");
+        }
     }
 
+    /** Data una stringa contenente comando e parametri per una certa funzione, estrae i parametri
+     *
+     * @param comm Comando da parsare
+     * @param minExpected Numero minimo di argomenti (escluso il nome del comando) che il client si aspetta
+     * @return Array di stringhe in cui la prima stringa è il nome del comando, le altre sono i parametri forniti,
+     *         null se i parametri forniti sono meno del previsto
+     */
     private String[] getStringArgs(String comm, int minExpected) {
         String[] ret = comm.split(" ");
         if (ret.length-1 >= minExpected)
             return ret;
         return null;
     }
+    /** Data una stringa contenente comando e parametri per una certa funzione (ognuno racchiuso tra token specificati
+     *  come parametro della funzione), estrae i parametri del comando
+     *
+     * @param comm Comando da parsare
+     * @param minExpected Numero minimo di argomenti (escluso il nome del comando) che il client si aspetta
+     * @return Array di stringhe in cui la prima stringa è il nome del comando, le altre sono i parametri forniti,
+     *         null se i parametri forniti sono meno del previsto
+     */
     private String[] getStringArgs(String comm, int minExpected, String token) {
+        // Creazione della lista contenente i parametri
         List<String> args = new ArrayList<>();
+        // Rimuovo il nome del comando
         if (comm.contains(token)) {
-            comm = comm.substring(comm.indexOf(token) + 1, comm.length());
+            comm = comm.substring(comm.indexOf(token) + 1);
         }
+        // Estraggo ogni parametro
         while (comm.contains(token)) {
             args.add(comm.substring(0, comm.indexOf(token)));
-            comm = comm.substring(min(comm.indexOf(token) + 3, comm.length()), comm.length());
+            comm = comm.substring(min(comm.indexOf(token) + 3, comm.length()));
         }
 
+        // Ritorno null se ho trovato meno argomenti del dovuto
         if (args.size() < minExpected)
             return null;
-
+        // Altrimenti ritorno la conversione della lista in array
         return Arrays.copyOf(args.toArray(), args.size(), String[].class);
     }
 
-    public static void main(String[] args) throws IOException, NotBoundException, NoSuchAlgorithmException {
-        // Crea il client e connettilo al server
-        WinsomeClient client = new WinsomeClient();
-        client.connect();
-        // Lettore dei comandi dell'utente
-        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-        // Ultimo comando inserito dall'utente
-        String currCommand = "";
+    public static void main(String[] args) {
+        try {
+            // Crea il client e connettilo al server
+            WinsomeClient client = new WinsomeClient();
+            client.connect();
+            // Lettore dei comandi dell'utente
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            // Ultimo comando inserito dall'utente
+            String currCommand = "";
 
-        // Finché l'utente non decide di uscire, leggi un comando alla volta ed eseguilo
-        while (!currCommand.startsWith("quit")) {
-            // Leggi il comando
-            currCommand = reader.readLine();
+            // Finché l'utente non decide di uscire, leggi un comando alla volta ed eseguilo
+            while (!currCommand.startsWith("quit")) {
+                // Leggi il comando
+                currCommand = reader.readLine();
 
-            // Richiedi operazioni diverse in base al comando
-            switch (currCommand.split(" ")[0]) {
-                case "register":
-                    client.signup(currCommand);
-                    break;
-                case "login":
-                    client.login(currCommand);
-                    break;
-                case "logout":
-                    client.logout();
-                    break;
-                case "list":
-                    client.list(currCommand);
-                    break;
-                case "follow":
-                    client.follow(currCommand);
-                    break;
-                case "unfollow":
-                    client.unfollow(currCommand);
-                    break;
-                case "post":
-                    client.post(currCommand);
-                    break;
-                case "blog":
-                    client.showBlog();
-                    break;
-                case "feed":
-                    client.showFeed();
-                    break;
-                case "rate":
-                    client.rate(currCommand);
-                    break;
-                case "comment":
-                    client.comment(currCommand);
-                    break;
-                case "show":
-                    if (currCommand.split(" ")[1].equals("post"))
-                        client.showPost(currCommand);
-                    break;
-                case "delete":
-                    client.deletePost(currCommand);
-                    break;
-                case "rewin":
-                    client.rewinPost(currCommand);
-                    break;
-                case "wallet":
-                    client.wallet(currCommand);
-                    break;
-                case "quit":
-                    break;
-                default:
-                    System.err.println("Comando errato o non ammesso");
-                    break;
+                // Richiedi operazioni diverse in base al comando
+                switch (currCommand.split(" ")[0]) {
+                    case "register":
+                        client.signup(currCommand);
+                        break;
+                    case "login":
+                        client.login(currCommand);
+                        break;
+                    case "logout":
+                        client.logout();
+                        break;
+                    case "list":
+                        client.list(currCommand);
+                        break;
+                    case "follow":
+                        client.follow(currCommand);
+                        break;
+                    case "unfollow":
+                        client.unfollow(currCommand);
+                        break;
+                    case "post":
+                        client.post(currCommand);
+                        break;
+                    case "blog":
+                        client.showBlog();
+                        break;
+                    case "feed":
+                        client.showFeed();
+                        break;
+                    case "rate":
+                        client.rate(currCommand);
+                        break;
+                    case "comment":
+                        client.comment(currCommand);
+                        break;
+                    case "show":
+                        if (currCommand.split(" ")[1].equals("post"))
+                            client.showPost(currCommand);
+                        break;
+                    case "delete":
+                        client.deletePost(currCommand);
+                        break;
+                    case "rewin":
+                        client.rewinPost(currCommand);
+                        break;
+                    case "wallet":
+                        client.wallet(currCommand);
+                        break;
+                    case "quit":
+                        break;
+                    default:
+                        System.err.println("Comando errato o non ammesso");
+                        break;
+                }
             }
-        }
 
+            client.closeConnection();
+        }
+        catch (IOException e) {
+            System.err.println("Errore fatale di I/O, chiusura del client");
+        } catch (NotBoundException e) {
+            System.err.println("Impossibile trovare lo stub remoto del server");
+        }
         // TODO: unbind register etc
 
-        client.closeConnection();
+
     }
 }

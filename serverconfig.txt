@@ -1,11 +1,14 @@
 # Indirizzo del server
 SERVER_ADDRESS: 127.0.0.1
+# Indirizzo multicast del server
+MULTICAST_ADDRESS: 224.0.3.0
 
-# Porta del server
+# Porte del server
 TCP_PORT: 6666
+UDP_PORT: 6000
 
 # Host del registry RMI
-REG_HOST: localhost
+REG_HOST: WINSOME_SERVER
 # Porta del registry RMI
 REG_PORT: 6667
 

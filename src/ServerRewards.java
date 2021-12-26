@@ -154,8 +154,9 @@ public class ServerRewards extends Thread{
             }
         }
 
+        // Invio una notifica ai client connessi in multicast
+        server.notifyReward();
         // Aggiorno il tempo dell'ultimo calcolo
         lastComputing = new Timestamp(System.currentTimeMillis());
-
     }
 }

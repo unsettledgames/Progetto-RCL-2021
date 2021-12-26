@@ -1,9 +1,13 @@
-import com.google.gson.Gson;
 import exceptions.ConfigException;
 import org.json.JSONObject;
 
 import java.io.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.channels.*;
+import java.nio.charset.StandardCharsets;
 import java.rmi.registry.*;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
@@ -14,35 +18,65 @@ import java.rmi.*;
 
 class WinsomeServer implements Runnable, IRemoteServer {
     // Parametri di rete e connessione
-    private int port;
-    private String address;
-    private String rmiHost;
+    // Indirizzo UDP multicast del server
+    private String multicastAddress;
+    // Porta TCP del server
+    private int tcpPort;
+    // Porta UDP del server
+    private int udpPort;
+    // Porta dello stub RMI del server
     private int rmiPort;
+    // Host name dell'RMI
+    private String rmiHostName;
 
     // Infrastruttura del server
+    // Selector usato per il channel multiplexing
     private Selector selector;
+    // Socket del server
     private ServerSocketChannel serverSocket;
-    private ExecutorService threadPool;
-    private HashMap<String, IRemoteClient> toNotify;
+    // Socket udp multicast del server
+    private DatagramSocket multicastSocket;
+    // ThreadPool che si occupa di gestire le richieste provenienti dai client
+    private final ExecutorService threadPool;
+    // Lista di stub di client da notificare riguardo nuovi follower o unfollowing
+    private final HashMap<String, IRemoteClient> toNotify;
 
     // Dati del social
-    private HashMap<String, SelectionKey> activeSessions;
+    // Sessioni attive al momento: a uno username si collega la SelectionKey del rispettivo client
+    private final HashMap<String, SelectionKey> activeSessions;
+
     // Dati relativi agli utenti e alle relazioni tra loro
+    // Utenti: a ogni username corrisponde un oggetto che rappresenta il rispettivo utente
     private ConcurrentHashMap<String, User> users;
+    // Followers: a ogni username corrisponde la lista degli username degli utenti che lo seguono
     private ConcurrentHashMap<String, List<String>> followers;
+    // Following: a ogni username corrisponde la lista degli username degli utenti seguiti
     private ConcurrentHashMap<String, List<String>> following;
+
     // Dati relativi a post, voti, commenti e rewin
-    private ConcurrentHashMap<String, List<Post>> authorPost;
+    // Mette in relazione ogni username con la lista di post che ha creato
+    private final ConcurrentHashMap<String, List<Post>> authorPost;
+    // Posts: a ogni id di post corrisponde l'oggetto che rappresenta l'oggetto
     private ConcurrentHashMap<Long, Post> posts;
+    // Voti: a ogni id di post corrisponde la lista delle valutazioni che quel post ha ricevuto
     private ConcurrentHashMap<Long, List<Vote>> votes;
+    // Commenti: a ogni id di post corrisponde la lista dei commenti che quel post ha ricevuto
     private ConcurrentHashMap<Long, List<Comment>> comments;
+    // Rewins: a ogni id di post originale corrisponde la lista degli id dei post di rewin di quel post originale
     private ConcurrentHashMap<Long, List<Long>> rewins;
 
     // Altri parametri
+    // Intervallo di tempo che intercorre tra un calcolo delle ricompense e l'altro
     private long rewardRate;
+    // Percentuale di ricompense assegnate all'autore di un post. Gli n curatori, a seconda di quanto hanno contribuito,
+    // ricevono una frazione del valore (totalReward - authorRewardPercentage)
     private float authorRewardPercentage;
+    // Intervallo di tempo che intercorre tra un salvataggio del server e l'altro
     private long autoSaveRate;
 
+    /** Semplice costruttore che si occupa di inizializzare le strutture dati
+     *
+     */
     public WinsomeServer() {
         toNotify = new HashMap<>();
         activeSessions = new HashMap<>();
@@ -62,12 +96,30 @@ class WinsomeServer implements Runnable, IRemoteServer {
                 TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
     }
 
-    public void addSession(String name, SelectionKey client) {activeSessions.put(name, client);}
+    /** Aggiunge alla lista delle sessioni la SelectionKey specificata come parametro, assegandola allo username
+     *  anch'esso specificato come argomento
+     *
+     * @param name Nome dell'utente loggato nella sessione
+     * @param client SelectionKey relativa al client
+     */
+    public void addSession(String name, SelectionKey client) {
+        activeSessions.put(name, client);
+    }
 
+    /** Elimina la sessione di un certo utente specificato come parametro
+     *
+     * @param name Nome dell'utente che ha terminato la sessione
+     */
     public void endSession(String name) {
         activeSessions.remove(name);
     }
+
+    /** Elimina la sessione di un certo utente usando la SelectionKey che gli corrisponde
+     *
+     * @param client SelectionKey da rimuovere
+     */
     public void endSession(SelectionKey client) {
+        // Cerco la SelectionKey tra i valori della mappa per trovare la chiave ed eliminare l'entry
         for (String key : activeSessions.keySet()) {
             if (activeSessions.get(key).equals(client)) {
                 activeSessions.remove(key);
@@ -76,13 +128,19 @@ class WinsomeServer implements Runnable, IRemoteServer {
         }
     }
 
+    /** Indica se l'utente il cui username passato come parametro si trova all'interno di una sessione o meno
+     *
+     * @param username Username dell'utente
+     * @return true se l'utente è coinvolto in una sessione, false altrimenti
+     */
     public boolean isInSession(String username) {
-        if (activeSessions.keySet().contains(username)) {
-            return true;
-        }
-        return false;
+        return activeSessions.containsKey(username);
     }
 
+    /** Configura il server utilizzando un file di configurazione il cui path è passato come parametro.
+     *
+     * @param configFile
+     */
     public void config(String configFile) {
         try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
             String line;
@@ -90,12 +148,18 @@ class WinsomeServer implements Runnable, IRemoteServer {
             while ((line = br.readLine()) != null) {
                 line = line.strip();
                 if (!line.startsWith("#") && !line.equals("")) {
+                    String address;
+
                     if (line.startsWith("SERVER_ADDRESS"))
-                        this.address = line.split(" ")[1].strip();
+                        address = line.split(" ")[1].strip();
+                    else if (line.startsWith("MULTICAST_ADDRESS"))
+                        this.multicastAddress = line.split(" ")[1].strip();
+                    else if (line.startsWith("UDP_PORT"))
+                        this.udpPort = Integer.parseInt(line.split(" ")[1].strip());
                     else if (line.startsWith("TCP_PORT"))
-                        this.port = Integer.parseInt(line.split(" ")[1].strip());
+                        this.tcpPort = Integer.parseInt(line.split(" ")[1].strip());
                     else if (line.startsWith("REG_HOST"))
-                        this.rmiHost = line.split(" ")[1].strip();
+                        rmiHostName = line.split(" ")[1].strip();
                     else if (line.startsWith("REG_PORT"))
                         this.rmiPort = Integer.parseInt(line.split(" ")[1].strip());
                     else if (line.startsWith("REWARD_RATE"))
@@ -117,15 +181,9 @@ class WinsomeServer implements Runnable, IRemoteServer {
     }
 
     public void open() throws IOException {
-        InetSocketAddress address = new InetSocketAddress(port);
+        InetSocketAddress address = new InetSocketAddress(tcpPort);
         selector = Selector.open();
         serverSocket = ServerSocketChannel.open();
-
-        serverSocket.bind(address);
-        serverSocket.configureBlocking(false);
-        serverSocket.register(selector, SelectionKey.OP_ACCEPT);
-
-        System.out.println("Server in ascolto...");
 
         // Carica il server con i dati salvati in precedenza se ce ne sono
         ServerPersistence.loadServer("data.json", this);
@@ -137,6 +195,16 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
         // Inizia la routine di calcolo delle ricompense
         new ServerRewards(this, rewardRate, authorRewardPercentage).start();
+
+        // Apri connessione multicast per notifica delle ricompense
+        multicastSocket = new DatagramSocket(this.udpPort);
+
+        // Binding indirizzo e registrazione selector
+        serverSocket.bind(address);
+        serverSocket.configureBlocking(false);
+        serverSocket.register(selector, SelectionKey.OP_ACCEPT);
+
+        System.out.println("Server in ascolto...");
     }
 
     @Override
@@ -200,7 +268,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
         LocateRegistry.createRegistry(rmiPort);
         Registry r = LocateRegistry.getRegistry(rmiPort);
-        r.rebind("WINSOME_SERVER", stub);
+        r.rebind(rmiHostName, stub);
 
         System.out.println("Servizio di registrazione attivo");
     }
@@ -249,6 +317,23 @@ class WinsomeServer implements Runnable, IRemoteServer {
             toNotify.get(following).unfollowed(follower);
     }
 
+    public void notifyReward() {
+        String toSend = "Calcolo delle ricompense eseguito. Controlla il portafoglio per " +
+                "verificare la presenza di nuove transazioni.";
+        try {
+            DatagramPacket packet = new DatagramPacket(toSend.getBytes(StandardCharsets.UTF_8), toSend.length(),
+                    InetAddress.getByName(multicastAddress), this.udpPort);
+            try {
+                multicastSocket.send(packet);
+            }
+            catch (IOException e) {
+                System.err.println("Impossibile inviare la notifica di calcolo delle ricompense");
+            }
+        } catch (UnknownHostException e) {
+            System.err.println("Host multicast non valido. Impossibile inviare la notifica di calcolo delle ricompense");
+        }
+    }
+
     public User getUser(String name) {
         return users.get(name);
     }
@@ -262,6 +347,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public ConcurrentHashMap<Long, Post> getPosts() {return posts;}
     public ConcurrentHashMap<Long, List<Comment>> getComments() {return this.comments;}
     public ConcurrentHashMap<Long, List<Long>> getRewins() {return this.rewins;}
+    public String getMulticastAddress() {return this.multicastAddress;}
+    public int getMulticastPort() {return this.udpPort;}
 
     public void setUsers(ConcurrentHashMap<String, User> users) {
         this.users = users;

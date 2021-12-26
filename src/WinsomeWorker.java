@@ -22,14 +22,20 @@ public class WinsomeWorker implements Runnable {
         this.key = request.getKey();
     }
 
-    public void login(String user, String pass) throws IOException {
+    public void login(String user, String pass) {
         User u = server.getUser(user);
+        JSONObject req = new JSONObject();
 
         if (u != null) {
             if (!server.isInSession(user)) {
                 if (u.getPassword().equals(pass)) {
+                    req.put("errCode", 0);
+                    req.put("errMsg", "OK");
+                    req.put("mcAddress", server.getMulticastAddress());
+                    req.put("mcPort", server.getMulticastPort());
+
                     server.addSession(user, request.getKey());
-                    ComUtility.attachAck(key);
+                    request.getKey().attach(req.toString());
                 }
                 else
                     ComUtility.attachError(-2, "Password errata", key);
