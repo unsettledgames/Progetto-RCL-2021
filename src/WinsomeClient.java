@@ -214,6 +214,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
 
                     if (rewardThread == null) {
                         rewardThread = new RewardNotifier(response.getString("mcAddress"), response.getInt("mcPort"));
+                        rewardThread.setDaemon(true);
                         rewardThread.start();
                     }
                 }
@@ -986,6 +987,6 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
         }
         // TODO: unbind register etc
 
-
+        System.exit(0);
     }
 }

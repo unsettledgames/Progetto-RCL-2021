@@ -286,6 +286,9 @@ public class WinsomeWorker implements Runnable {
         String user = request.getJson().getString("user");
         // Ottenimento dei post di cui user è l'autore
         List<Post> userBlog = server.getAuthorPost().get(user);
+        if (userBlog == null) {
+            userBlog = new ArrayList<>();
+        }
 
         // Ordino la lista dei post per data decrescente
         Collections.sort(userBlog);

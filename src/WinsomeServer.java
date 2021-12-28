@@ -91,9 +91,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
         comments = new ConcurrentHashMap<>();
         rewins = new ConcurrentHashMap<>();
 
-        // TODO: politica di rifiuto custom
         threadPool = new ThreadPoolExecutor(5, 20, 1000,
-                TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+                TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), new RepeatPolicy(5, 2));
     }
 
     /** Aggiunge alla lista delle sessioni la SelectionKey specificata come parametro, assegandola allo username
@@ -196,11 +195,15 @@ class WinsomeServer implements Runnable, IRemoteServer {
         System.out.println("Caricati dati del server");
 
         // Inizia la routine di salvataggio dei dati
-        new ServerPersistence(this, "data.json", autoSaveRate).start();
+        Thread sp = new ServerPersistence(this, "data.json", autoSaveRate);
+        sp.setDaemon(true);
+        sp.start();
         System.out.println("Abilitato salvataggio server");
 
         // Inizia la routine di calcolo delle ricompense
-        new ServerRewards(this, rewardRate, authorRewardPercentage).start();
+        sp = new ServerRewards(this, rewardRate, authorRewardPercentage);
+        sp.setDaemon(true);
+        sp.start();
 
         // Apri connessione multicast per notifica delle ricompense
         multicastSocket = new DatagramSocket();
@@ -220,7 +223,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
      */
     @Override
     public void run() {
-        while (true) {
+        while (!Thread.currentThread().isInterrupted()) {
             // Select
             try {
                 selector.select();
@@ -259,12 +262,33 @@ class WinsomeServer implements Runnable, IRemoteServer {
                             endSession(currKey);
                             currKey.cancel();
                             System.out.println("Client disconnesso");
-                        }
-                        else {
+                        } else {
                             // Ricrea l'oggetto json
                             JSONObject json = new JSONObject(content);
-                            // Avvia l'esecuzione della richiesta ricevuta
-                            this.threadPool.submit(new WinsomeWorker(this, new ClientRequest(currKey, json)));
+                            // Indica se la richiesta è stata accettata dal pool o meno
+                            boolean accepted = false;
+                            // Quando i diventa 5, il server esegue manualmente la richiesta
+                            int i = 0;
+
+                            // Provo a inviare la richiesta per 5 volte aspettando piccoli intervalli di tempo
+                            while (!accepted && i < 5) {
+                                try {
+                                    // Avvia l'esecuzione della richiesta ricevuta
+                                    this.threadPool.execute(new WinsomeWorker(this, new ClientRequest(currKey, json)));
+                                    accepted = true;
+                                }
+                                catch (RejectedExecutionException e) {
+                                    i++;
+                                    if (i == 5) {
+                                        new WinsomeWorker(this, new ClientRequest(currKey, json)).run();
+                                    }
+                                    try {
+                                        Thread.sleep(5);
+                                    } catch (InterruptedException ex) {
+                                        System.err.println("Thread interrotto nel tentativo di risolvere una richiesta");
+                                    }
+                                }
+                            }
                         }
                     }
                     // Se la chiave è writable, è valida e ha un allegato, lo spedisco
@@ -281,6 +305,9 @@ class WinsomeServer implements Runnable, IRemoteServer {
                 }
             }
         }
+
+        System.out.println("Chiusura del server avviata");
+        System.exit(0);
     }
 
     /** Abilita lo stub RMI usato dal client per registrare nuovi utenti
@@ -475,7 +502,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
             server.enableRMI();
 
             // Inizia la routine di gestione delle connessioni
-            new Thread(server).start();
+            Thread serverThread = new Thread(server);
+            serverThread.start();
         }
         catch (IOException e) {
             System.err.println("Errore fatale di inizializzazione, impossibile eseguire il server");
