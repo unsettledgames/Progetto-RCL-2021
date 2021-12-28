@@ -4,6 +4,7 @@
  *
  *  OP = 0 (SIGNUP):
  *      -1: Username già esistente
+ *      -2: Username non valido (non rispetta l'espressione regolare ^@?(\w){1,15}$)
  *  OP = 1 (LOGIN):
  *      -1: Utente già loggato
  *      -2: Password errata

@@ -5,7 +5,7 @@ MULTICAST_ADDRESS: 224.0.3.0
 
 # Porte del server
 TCP_PORT: 6666
-UDP_PORT: 6000
+UDP_PORT: 6668
 
 # Host del registry RMI
 REG_HOST: WINSOME_SERVER
@@ -13,7 +13,7 @@ REG_HOST: WINSOME_SERVER
 REG_PORT: 6667
 
 # Intervallo di calcolo delle ricompense in millisecondi
-REWARD_RATE: 3000
+REWARD_RATE: 10000
 # Percentuale delle ricompense assegnate all'autore: il resto viene suddiviso tra i curatori
 REWARD_PERCENTAGE: 50
 

@@ -11,7 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.rmi.UnknownHostException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.RemoteObject;
@@ -43,8 +42,6 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     private final IRemoteClient clientStub;
     // Socket con cui si comunica con il server
     private SocketChannel socket;
-    // Socket con cui si ricevono le notifiche dal server
-    private MulticastSocket mcSocket;
 
     // Dati di sessione
     // Username dell'utente loggato al momento: se non è ancora loggato, contiene la stringa vuota
@@ -52,6 +49,10 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     // Lista contenente i followers correnti del client. Viene assegnata per la prima volta dal server al momento del login
     // e viene poi aggiornata tramite RMI callback da parte del server
     private final List<String> followers;
+
+    // Altri attributi
+    // Thread che si occupa di visualizzare le notifiche di calcolo delle ricompense
+    private RewardNotifier rewardThread;
 
     /** Costruttore del Client: inizializza la lista dei followers, crea lo stub del client per la notifica dei follower
      *  e cerca lo stub del server per la procedura di registrazione.
@@ -120,6 +121,11 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
      * @param comm I parametri di registrazione
      */
     public void signup(String comm) {
+        if (currUsername != null) {
+            System.err.println("Impossibile registrare un nuovo utente quando si e' loggati. Terminare la sessione " +
+                    "corrente usando il comando logout");
+            return;
+        }
         // Ottenimento dei parametri di registrazione (minimo 3: nome utente, password e un tag)
         String[] args = getStringArgs(comm, 3);
         if (args != null) {
@@ -206,10 +212,10 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                         System.err.println("Registrazione al servizio di notifica fallito");
                     }
 
-                    // Registrazione al servizio di notifiche per il calcolo delle ricompense
-                    InetAddress address = InetAddress.getByName(response.getString("mcAddress"));
-                    this.mcSocket = new MulticastSocket(response.getInt("mcPort"));
-                    mcSocket.joinGroup(address);
+                    if (rewardThread == null) {
+                        rewardThread = new RewardNotifier(response.getString("mcAddress"), response.getInt("mcPort"));
+                        rewardThread.start();
+                    }
                 }
             }
             catch (IOException e) {
@@ -249,6 +255,9 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                 if (reply.getInt("errCode") == 0) {
                     try {
                         ((IRemoteServer) LocateRegistry.getRegistry(6667).lookup("WINSOME_SERVER")).unregisterNotifications(currUsername);
+                        // Annullo l'iscrizione al servizio di notifica del calcolo delle ricompense
+                        rewardThread.close();
+                        rewardThread = null;
                     }
                     catch (NotBoundException e) {
                         System.err.println("Impossibile disiscriversi dal servizio di notifica");

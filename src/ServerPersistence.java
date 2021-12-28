@@ -74,9 +74,9 @@ public class ServerPersistence extends Thread {
                 toLoad.setRewins(gson.fromJson(json.getString("rewins"), type));
         }
         catch (IOException e) {
-            System.err.println("Errore di lettura del file di persistenza, il server verrà caricato senza dati precedenti");
+            System.err.println("Errore di lettura del file di persistenza, il server verra' caricato senza dati precedenti");
         } catch (JSONException e) {
-            System.err.println("File di persistenza corrotto, il server verrà caricato con informazioni parziali.");
+            System.err.println("File di persistenza corrotto, il server verra' caricato con informazioni parziali.");
         }
     }
 

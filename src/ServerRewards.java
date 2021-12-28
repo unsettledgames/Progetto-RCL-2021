@@ -79,6 +79,8 @@ public class ServerRewards extends Thread{
                 postRating = 0;
                 totComments = 0;
                 totPositiveRatings = 0;
+                comments = new HashMap<>();
+                raters = new HashMap<>();
 
                 // Ottengo l'id del post
                 Long postId = p.getId();
@@ -141,10 +143,13 @@ public class ServerRewards extends Thread{
 
                     // Accredito della ricompensa ai curatori: i curatori si dividono i ricavi in parti uguali
                     // Accredito delle ricompense per i commenti
-                    for (String user : comments.keySet()) {
-                        server.getUsers().get(user).addReward(new Transaction("Ricompensa autore (commenti)",
-                                curatorFraction * comments.get(user), p.getId()));
+                    if (curatorFraction < Double.POSITIVE_INFINITY) {
+                        for (String user : comments.keySet()) {
+                            server.getUsers().get(user).addReward(new Transaction("Ricompensa autore (commenti)",
+                                    curatorFraction * comments.get(user), p.getId()));
+                        }
                     }
+
                     // Accredito delle ricompense per voti
                     for (String user : raters.keySet()) {
                         server.getUsers().get(user).addReward(new Transaction("Ricompensa autore (voti)",

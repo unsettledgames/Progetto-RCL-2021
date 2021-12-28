@@ -139,7 +139,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
     /** Configura il server utilizzando un file di configurazione il cui path è passato come parametro.
      *
-     * @param configFile
+     * @param configFile File contenente le opzioni di configurazione del server
      */
     public void config(String configFile) {
         try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
@@ -180,7 +180,13 @@ class WinsomeServer implements Runnable, IRemoteServer {
         }
     }
 
+    /** Apre tutte le connessioni necessarie (multicast per notifiche, tcp per richieste) e avvia i thread di supporto
+     *  al server (salvataggio dei dati, calcolo delle ricompense)
+     *
+     * @throws IOException In caso di fallimento del Selector o del Socket
+     */
     public void open() throws IOException {
+        // Apertura del socket TCP
         InetSocketAddress address = new InetSocketAddress(tcpPort);
         selector = Selector.open();
         serverSocket = ServerSocketChannel.open();
@@ -197,7 +203,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
         new ServerRewards(this, rewardRate, authorRewardPercentage).start();
 
         // Apri connessione multicast per notifica delle ricompense
-        multicastSocket = new DatagramSocket(this.udpPort);
+        multicastSocket = new DatagramSocket();
 
         // Binding indirizzo e registrazione selector
         serverSocket.bind(address);
@@ -207,15 +213,22 @@ class WinsomeServer implements Runnable, IRemoteServer {
         System.out.println("Server in ascolto...");
     }
 
+    /** Routine di gestione delle richieste. I client inviano delle richieste, che il client assegna a un thread worker:
+     *  quando i thread worker finiscono di elaborarle, allegano una stringa che rappresenta un oggetto JSON di risposta.
+     *  Quando il client è pronto per ricevere dati, tale allegato viene spedito.
+     *
+     */
     @Override
     public void run() {
         while (true) {
+            // Select
             try {
                 selector.select();
             } catch (IOException e) {
                 e.printStackTrace();
             }
 
+            // Ottenimento delle chiavi pronte
             Set<SelectionKey> readyKeys = selector.selectedKeys();
             Iterator<SelectionKey> keyIt = readyKeys.iterator();
 
@@ -224,6 +237,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
                 keyIt.remove();
 
                 try {
+                    // Se è acceptable, stabilisco una connessione con il nuovo client e lo configuro per la lettura
+                    // e per la scrittura
                     if (currKey.isAcceptable()) {
                         SocketChannel client = serverSocket.accept();
                         System.out.println("Accettata connessione da: " + client.getLocalAddress());
@@ -231,11 +246,15 @@ class WinsomeServer implements Runnable, IRemoteServer {
                         client.configureBlocking(false);
                         client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
                     }
+                    // Se è readable e valida, leggo la richiesta e la assegno a un worker
                     else if (currKey.isReadable() && currKey.isValid()) {
-                        // Get the current channel
+                        // Ottengo il channel del client
                         SocketChannel channel = (SocketChannel) currKey.channel();
+                        // Ricevo il contenuto dal channel
                         String content = ComUtility.receive(channel);
 
+                        // In tal caso si è verificato un errore ed è meglio disconnettersi dal client per evitare
+                        // problemi in futuro
                         if (content.equals("")) {
                             endSession(currKey);
                             currKey.cancel();
@@ -248,11 +267,13 @@ class WinsomeServer implements Runnable, IRemoteServer {
                             this.threadPool.submit(new WinsomeWorker(this, new ClientRequest(currKey, json)));
                         }
                     }
+                    // Se la chiave è writable, è valida e ha un allegato, lo spedisco
                     else if (currKey.isWritable() && currKey.isValid() && currKey.attachment() != null) {
-                        // Send the attachment
+                        // Spedisci l'attachment
                         ComUtility.sendAsync(currKey);
                     }
                 }
+                // In caso di eccezione, chiudo la connessione
                 catch (IOException e) {
                     endSession(currKey);
                     currKey.cancel();
@@ -262,10 +283,15 @@ class WinsomeServer implements Runnable, IRemoteServer {
         }
     }
 
+    /** Abilita lo stub RMI usato dal client per registrare nuovi utenti
+     *
+     * @throws RemoteException In caso di fallimento nella creazione dello stub
+     */
     public void enableRMI() throws RemoteException {
-        WinsomeServer server = this;
-        IRemoteServer stub = (IRemoteServer) UnicastRemoteObject.exportObject(server, 0);
+        // Esportazione dello stub
+        IRemoteServer stub = (IRemoteServer) UnicastRemoteObject.exportObject(this, 0);
 
+        // Registrazione
         LocateRegistry.createRegistry(rmiPort);
         Registry r = LocateRegistry.getRegistry(rmiPort);
         r.rebind(rmiHostName, stub);
@@ -273,14 +299,29 @@ class WinsomeServer implements Runnable, IRemoteServer {
         System.out.println("Servizio di registrazione attivo");
     }
 
+    /** Implementa la procedura di registrazione per un utente
+     *
+     * @param username Nome utente
+     * @param password Password dell'utente
+     * @param tags Tag selezionati
+     * @return Stringa in formato JSON contenente l'esito dell'operazione
+     * @throws RemoteException In caso di errore nell'RMI
+     */
     @Override
     public String signup(String username, String password, String[] tags) throws RemoteException {
-        // TODO: espressione regolare per la validità del nome utente
+        // Non registrare un nuovo utente se lo username è già preso
         JSONObject ret = new JSONObject();
         if (users.containsKey(username)) {
             ret.put("errCode", -1);
-            ret.put("errMsg", "Utente già esistente");
+            ret.put("errMsg", "Utente gia' esistente");
         }
+        // Verifica che lo username sia lungo da 1 a 15 caratteri, che contenga solo caratteri alfanumerici o underscores
+        else if (!username.matches("^@?(\\w){1,15}$")) {
+            ret.put("errCode", -2);
+            ret.put("errMsg", "Username non valido: dev'essere lungo almeno 1 carattere e al massimo 15 e puo' contenere solo " +
+                    "caratteri latini, underscores e numeri");
+        }
+        // Se tutto va bene, aggiungi un nuovo utente con le caratteristiche specificate
         else {
             User toAdd = new User(username, password, tags);
             users.put(username, toAdd);
@@ -288,9 +329,16 @@ class WinsomeServer implements Runnable, IRemoteServer {
             ret.put("errMsg", "Ok");
         }
 
+        // Ritorna l'esito
         return ret.toString();
     }
 
+    /** Permette a un client di registrarsi al servizio di notifica dei nuovi followers
+     *
+     * @param username Utente loggato nel client che richiede la registrazione
+     * @param client Client che richiede la registrazione al servizio
+     * @throws RemoteException In caso di errore nell'RMI
+     */
     @Override
     public void registerNotifications(String username, IRemoteClient client) throws RemoteException {
         // Registra il client al servizio di notifiche
@@ -304,26 +352,55 @@ class WinsomeServer implements Runnable, IRemoteServer {
             }
         }
     }
+
+    /** Annulla l'iscrizione di un client al servizio di notifiche
+     *
+     * @param client Il nome dell'utente loggato nel client che intende disiscriversi
+     * @throws RemoteException In caso di errore RMI
+     */
     @Override
     public void unregisterNotifications(String client) throws RemoteException {
         toNotify.remove(client);
     }
+
+    /** Notifica al client corretto che un nuovo utente ha iniziato a seguirlo
+     *
+     * @param follower Nome utente del nuovo follower
+     * @param following Nome dell'utente che il follower ha iniziato a seguire
+     * @param isNew Indica se il follower è nuovo (cioè nel corso della sessione di following, follower ha iniziato a
+     *              seguirlo) oppure se non lo è (cioè questa funzione è stata chiamata per sincronizzare lo stato del
+     *              server con quello del client)
+     * @throws RemoteException
+     */
     public void notifyNewFollower(String follower, String following, boolean isNew) throws RemoteException {
         if (toNotify.get(following) != null)
             toNotify.get(following).newFollower(follower, isNew);
     }
+
+    /** Notifica al client corretto che un utente ha smesso di seguirlo
+     *
+     * @param follower Nome dell'utente che stava seguendo l'utente da notificare
+     * @param following Nome dell'utente da notificare
+     * @throws RemoteException In caso di errore RMI
+     */
     public void notifyUnfollow(String follower, String following) throws RemoteException {
         if (toNotify.get(following) != null)
             toNotify.get(following).unfollowed(follower);
     }
 
+    /** Notifica a tuti i client iscritti al gruppo di multicast che è stato effettuato il calcolo delle ricompense
+     *
+     */
     public void notifyReward() {
+        // Messaggio da inviare
         String toSend = "Calcolo delle ricompense eseguito. Controlla il portafoglio per " +
                 "verificare la presenza di nuove transazioni.";
         try {
+            // Preparazione del pacchetto
             DatagramPacket packet = new DatagramPacket(toSend.getBytes(StandardCharsets.UTF_8), toSend.length(),
                     InetAddress.getByName(multicastAddress), this.udpPort);
             try {
+                // Invio del pacchetto
                 multicastSocket.send(packet);
             }
             catch (IOException e) {
@@ -334,12 +411,17 @@ class WinsomeServer implements Runnable, IRemoteServer {
         }
     }
 
+    /** Ritorna un utente dato il suo username
+     *
+     * @param name Nome dell'utente da ottenere
+     * @return L'oggetto che rappresenta l'utente desiderato
+     */
     public User getUser(String name) {
         return users.get(name);
     }
-    public ConcurrentHashMap<String, User> getUsers() {
-        return users;
-    }
+
+    // Semplici getters per gli attributi
+    public ConcurrentHashMap<String, User> getUsers() {return users;}
     public ConcurrentHashMap<String, List<String>> getFollowers() {return followers;}
     public ConcurrentHashMap<String, List<String>> getFollowing() {return following;}
     public ConcurrentHashMap<String, List<Post>> getAuthorPost() {return authorPost;}
@@ -350,32 +432,36 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public String getMulticastAddress() {return this.multicastAddress;}
     public int getMulticastPort() {return this.udpPort;}
 
-    public void setUsers(ConcurrentHashMap<String, User> users) {
-        this.users = users;
-    }
-    public void setFollowers(ConcurrentHashMap<String, List<String>> followers) {
-        this.followers = followers;
-    }
-    public void setFollowing(ConcurrentHashMap<String, List<String>> following) {
-        this.following = following;
-    }
+    // Semplici setters per gli attributi
+    public void setUsers(ConcurrentHashMap<String, User> users) {this.users = users;}
+    public void setFollowers(ConcurrentHashMap<String, List<String>> followers) {this.followers = followers;}
+    public void setFollowing(ConcurrentHashMap<String, List<String>> following) {this.following = following;}
+    public void setVotes(ConcurrentHashMap<Long, List<Vote>> votes){this.votes = votes;}
+    public void setComments(ConcurrentHashMap<Long, List<Comment>> comments){this.comments = comments;}
+    public void setRewins(ConcurrentHashMap<Long, List<Long>> rewins) { this.rewins = rewins; }
+
+    /** Imposta la lista dei post. Essendo chiamata dal ServerPersistence per caricare il server, oltre a caricare i
+     *  post, si assegnano anche i post originali agli autori (i rewin non vengono assegnati a un autore)
+     *
+     * @param posts I post caricati dal ServerPersistence thread
+     */
     public void setPosts(ConcurrentHashMap<Long, Post> posts) {
         long postId = 0;
         this.posts = posts;
 
         for (Post p : posts.values()) {
-            this.authorPost.computeIfAbsent(p.getAuthor(), k -> new ArrayList<>());
-            this.authorPost.get(p.getAuthor()).add(p);
-            postId = Math.max(postId, p.getId());
+            if (!p.isRewin()) {
+                this.authorPost.computeIfAbsent(p.getAuthor(), k -> new ArrayList<>());
+                this.authorPost.get(p.getAuthor()).add(p);
+                postId = Math.max(postId, p.getId());
+            }
         }
 
         Post.setMinId(postId + 1);
     }
-    public void setVotes(ConcurrentHashMap<Long, List<Vote>> votes){this.votes = votes;}
-    public void setComments(ConcurrentHashMap<Long, List<Comment>> comments){this.comments = comments;}
-    public void setRewins(ConcurrentHashMap<Long, List<Long>> rewins) { this.rewins = rewins; }
 
-    public static void main(String[] args) throws IOException {
+
+    public static void main(String[] args) {
         if (args.length < 1) {
             throw new ConfigException(" File non indicato");
         }
@@ -383,11 +469,16 @@ class WinsomeServer implements Runnable, IRemoteServer {
         WinsomeServer server = new WinsomeServer();
 
         // Configuralo e aprilo secondo i parametri del file
-        server.config(args[0]);
-        server.open();
-        server.enableRMI();
+        try {
+            server.config(args[0]);
+            server.open();
+            server.enableRMI();
 
-        // Inizia la routine di gestione delle connessioni
-        new Thread(server).start();
+            // Inizia la routine di gestione delle connessioni
+            new Thread(server).start();
+        }
+        catch (IOException e) {
+            System.err.println("Errore fatale di inizializzazione, impossibile eseguire il server");
+        }
     }
 }
