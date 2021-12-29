@@ -154,7 +154,7 @@ public class WinsomeWorker implements Runnable {
         String follower = request.getJson().getString("user");
 
         ConcurrentHashMap<String, Vector<String>> followers = server.getFollowers();
-        ConcurrentHashMap<String, Vector<String>> following = server.getFollowers();
+        ConcurrentHashMap<String, Vector<String>> following = server.getFollowing();
 
         synchronized (following) {
             // Evito che l'utente da seguire non sia già seguito
@@ -290,6 +290,8 @@ public class WinsomeWorker implements Runnable {
         Vector<Long> userBlog = server.getAuthorPost().get(user);
         Vector<Post> ret = new Vector<>();
 
+        if (userBlog == null)
+            userBlog = new Vector<>();
         for (Long p : userBlog)
             ret.add(server.getPosts().get(p));
 
@@ -356,23 +358,22 @@ public class WinsomeWorker implements Runnable {
         ConcurrentHashMap<Long, Vector<Vote>> votes = server.getVotes();
         Vector<Vote> currVotes = votes.get(post);
 
-        if (currVotes != null) {
-            synchronized (currVotes) {
-                // Verifico che il voto non sia già stato inserito
-                for (Vote v : currVotes) {
-                    if (v.getUser().equals(author)) {
-                        ComUtility.attachError(-1, "Errore di votazione: hai gia' votato questo post.", key);
-                        return;
-                    }
+        if (currVotes == null)
+            votes.put(post, new Vector<>());
+        currVotes = votes.get(post);
+
+        synchronized (currVotes) {
+            // Verifico che il voto non sia già stato inserito
+            for (Vote v : currVotes) {
+                if (v.getUser().equals(author)) {
+                    ComUtility.attachError(-1, "Errore di votazione: hai gia' votato questo post.", key);
+                    return;
                 }
-
-                // Se i controlli sono stati superati, aggiungo il post
-                votes.put(post, new Vector<>());
-                currVotes = votes.get(post);
-
-                Vote toAdd = new Vote(author, req.getInt("value"));
-                currVotes.add(toAdd);
             }
+
+            // Se i controlli sono stati superati, aggiungo il post
+            Vote toAdd = new Vote(author, req.getInt("value"));
+            currVotes.add(toAdd);
         }
 
         ComUtility.attachAck(key);
@@ -508,16 +509,18 @@ public class WinsomeWorker implements Runnable {
             return;
         }
 
-        // Rimuovo il post dall'insieme dei post
-        server.getPosts().remove(post);
-        // Se non sto rimuovendo un rewin, allora cancello anche commenti e voti, oltre a rimuovere il post dalla
-        // lista dei post creati dall'utente
-        if (!toDelete.isRewin()) {
-            server.getAuthorPost().get(user).remove(toDelete.getId());
-            // Rimuovo i voti
-            server.getVotes().remove(post);
-            // Rimuovo i commenti
-            server.getComments().remove(post);
+        synchronized(server) {
+            // Rimuovo il post dall'insieme dei post
+            server.getPosts().remove(post);
+            // Se non sto rimuovendo un rewin, allora cancello anche commenti e voti, oltre a rimuovere il post dalla
+            // lista dei post creati dall'utente
+            if (!toDelete.isRewin()) {
+                server.getAuthorPost().get(user).remove(toDelete.getId());
+                // Rimuovo i voti
+                server.getVotes().remove(post);
+                // Rimuovo i commenti
+                server.getComments().remove(post);
+            }
         }
 
         // Mando un ack al client
@@ -528,7 +531,7 @@ public class WinsomeWorker implements Runnable {
     /** Risolve le richieste di rewin di un post
      *
      */
-    public synchronized void rewinPost() {
+    public void rewinPost() {
         // Parametri richiesta
         JSONObject req = request.getJson();
         // Utente che intende rewinnare il post
@@ -537,28 +540,34 @@ public class WinsomeWorker implements Runnable {
         Long post = req.getLong("post");
         // Feed dell'utente
         Vector<Post> feed = getFeed(user);
+        ConcurrentHashMap<Long, Post> posts = server.getPosts();
+        ConcurrentHashMap<Long, Vector<Long>> rewins = server.getRewins();
 
-        // Verifico che il post da rewinnare sia visibile dall'utente
-        if (!feed.contains(server.getPosts().get(post))) {
-            ComUtility.attachError(-1, "Il post da rewinnare non e' presente nel tuo feed.", key);
-            return;
-        }
-        // Verifico che l'utente non abbia già rewinnato il post
-        for (Long p : server.getRewins().keySet()) {
-            for (Long p2 : server.getRewins().get(p)) {
-                if (server.getPosts().get(p2).getRewinner().equals(user)) {
-                    ComUtility.attachError(-2, "Hai gia' rewinnato questo post.", key);
+        synchronized (posts) {
+            synchronized (rewins) {
+                // Verifico che il post da rewinnare sia visibile dall'utente
+                if (!feed.contains(server.getPosts().get(post))) {
+                    ComUtility.attachError(-1, "Il post da rewinnare non e' presente nel tuo feed.", key);
                     return;
                 }
+                // Verifico che l'utente non abbia già rewinnato il post
+                for (Long p : server.getRewins().keySet()) {
+                    for (Long p2 : server.getRewins().get(p)) {
+                        if (server.getPosts().get(p2).getRewinner().equals(user)) {
+                            ComUtility.attachError(-2, "Hai gia' rewinnato questo post.", key);
+                            return;
+                        }
+                    }
+                }
+
+                // Creo un post di rewin, basato sul post originale (quindi se sto rewinnando un rewin, non faccio altro che
+                // rewinnare il post originale)
+                Post toAdd = new Post(server.getPosts().get(getOriginalPost(post)), user);
+                server.getRewins().computeIfAbsent(post, k -> new Vector<>());
+                server.getRewins().get(post).add(toAdd.getId());
+                server.getPosts().put(toAdd.getId(), toAdd);
             }
         }
-
-        // Creo un post di rewin, basato sul post originale (quindi se sto rewinnando un rewin, non faccio altro che
-        // rewinnare il post originale)
-        Post toAdd = new Post(server.getPosts().get(getOriginalPost(post)), user);
-        server.getRewins().computeIfAbsent(post, k -> new Vector<>());
-        server.getRewins().get(post).add(toAdd.getId());
-        server.getPosts().put(toAdd.getId(), toAdd);
 
         ComUtility.attachAck(key);
     }
@@ -586,7 +595,10 @@ public class WinsomeWorker implements Runnable {
     }
 
 
-
+    /** Risolve le richieste di conversione dell'ammontare di denaro nel portafoglio da Wincoin a Bitcoin. Il fattore
+     *  di conversione viene recuperato tramite un documento in plaintext restituito da random.org
+     *
+     */
     public void walletBtc() {
         JSONObject req = request.getJson();
         String user = req.getString("user");
@@ -594,15 +606,19 @@ public class WinsomeWorker implements Runnable {
         double factor;
 
         try {
+            // URL che permette di generare un numero tra 0 e 1
             URL url = new URL("https://www.random.org/decimal-fractions/?num=1&dec=10&col=1&format=plain&rnd=new");
+            // Usato per leggere il valore generato
             InputStreamReader reader = new InputStreamReader(url.openStream(), StandardCharsets.UTF_8);
             StringBuilder randomNumber = new StringBuilder();
 
+            // Costruzione del valore
             int c;
             while ((c = reader.read()) > 0) {
                 randomNumber.append((char) c);
             }
 
+            // Conversione da stringa a double
             factor = Double.parseDouble(randomNumber.toString());
         }
         catch (IOException e) {
@@ -611,7 +627,7 @@ public class WinsomeWorker implements Runnable {
             factor = 1;
         }
 
-        // Invio el risultato
+        // Invio il risultato
         reply.put("errCode", 0);
         reply.put("errMsg", "OK");
         reply.put("btc", server.getUser(user).getWallet() * factor);
@@ -640,7 +656,6 @@ public class WinsomeWorker implements Runnable {
         }
 
         Collections.sort(ret);
-
         return ret;
     }
 
