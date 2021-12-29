@@ -3,6 +3,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Vector;
 
 public class ServerRewards extends Thread{
     // Server contenente i dati necessari per calcolare le ricompense
@@ -55,23 +56,22 @@ public class ServerRewards extends Thread{
      *  aggiunta di commenti.
      *
      */
-    private synchronized void calculateRewards() {
+    private void calculateRewards() {
         // Rating totale del post (comprende anche i voti negativi)
-        int postRating = 0;
+        int postRating;
         // Numero totale di commenti per post
-        int totComments = 0;
-        int totPositiveRatings = 0;
+        int totComments;
+        int totPositiveRatings;
 
         // Mappa che collega gli utenti al numero di commenti che hanno effettuato, utile per il calcolo delle
         // ricompense dovute ai commenti
-        HashMap<String, Integer> comments = new HashMap<>();
+        HashMap<String, Integer> comments;
         // Mappa che collega gli utenti al numero di voti positivi che hanno lasciato, utile per il calcolo delle
         // ricompense dovute ai voti positivi
-        HashMap<String, Integer> raters = new HashMap<>();
+        HashMap<String, Integer> raters;
 
         // Ciclo all'interno dei post originali (ovvero quelli creati esplicitamente dagli utenti)
-        for (List<Post> postList : server.getAuthorPost().values()) {
-
+        for (Vector<Post> postList : server.getAuthorPost().values()) {
             // Per ogni post calcolo la ricompensa
             for (Post p : postList) {
 
@@ -145,14 +145,14 @@ public class ServerRewards extends Thread{
                     // Accredito delle ricompense per i commenti
                     if (curatorFraction < Double.POSITIVE_INFINITY) {
                         for (String user : comments.keySet()) {
-                            server.getUsers().get(user).addReward(new Transaction("Ricompensa autore (commenti)",
+                            server.getUsers().get(user).addReward(new Transaction("Ricompensa curatore (commenti)",
                                     curatorFraction * comments.get(user), p.getId()));
                         }
                     }
 
                     // Accredito delle ricompense per voti
                     for (String user : raters.keySet()) {
-                        server.getUsers().get(user).addReward(new Transaction("Ricompensa autore (voti)",
+                        server.getUsers().get(user).addReward(new Transaction("Ricompensa curatore (voti)",
                                 curatorFraction * raters.get(user), p.getId()));
                     }
                 }

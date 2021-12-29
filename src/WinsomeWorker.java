@@ -74,11 +74,8 @@ public class WinsomeWorker implements Runnable {
         String user = request.getJson().getString("user");
 
         // Se l'utente è all'interno di una sessione
-        if (server.isInSession(user)) {
-            // Posso rimuoverlo
-            server.endSession(user);
+        if (server.getActiveSessions().remove(user) != null)
             ComUtility.attachAck(key);
-        }
         else
             ComUtility.attachError(-1, "Utente non loggato", key);
     }
@@ -97,22 +94,18 @@ public class WinsomeWorker implements Runnable {
         JSONObject json = new JSONObject();
         Gson gson = new Gson();
 
-        // Itero lungo la lista degli utenti
-        Iterator<Map.Entry<String, User>> it = server.getUsers().entrySet().iterator();
         // Creo un'hashmap per salvare, per ogni nome utente, la lista di tag in comune con esso
         HashMap<String, String[]> ret = new HashMap<>();
 
-        while (it.hasNext()) {
-            Map.Entry<String, User> item = it.next();
-
+        for (User u : server.getUsers().values()) {
             // Ignoro l'utente che ha effetuato la richiesta
-            if (!item.getValue().equals(currUser)) {
+            if (!u.equals(currUser)) {
                 // Ottengo i tag in comune
-                String[] commonTags = getCommonTags(user, item.getValue().getUsername());
+                String[] commonTags = getCommonTags(user, u.getUsername());
 
                 // Se ce ne sono, aggiungo l'utente alla mappa di ritorno
                 if (commonTags.length > 0)
-                    ret.put(item.getKey(), commonTags);
+                    ret.put(u.getUsername(), commonTags);
             }
         }
 
@@ -136,9 +129,9 @@ public class WinsomeWorker implements Runnable {
         JSONObject json = new JSONObject();
         Gson gson = new Gson();
         // Ottengo la lista dei following
-        List<String> toConvert = server.getFollowing().get(user);
+        Vector<String> toConvert = server.getFollowing().get(user);
         if (toConvert == null)
-            toConvert = new ArrayList<>();
+            toConvert = new Vector<>();
 
         // Invio la risposta, convertendo la lista dei following in un array di nomi utente
         json.put("items", gson.toJson(toConvert));
@@ -152,7 +145,7 @@ public class WinsomeWorker implements Runnable {
     /** Risolve la richiesta di follow di un utente
      *
      */
-    public synchronized void follow() {
+    public void follow() {
         // Risposta
         JSONObject reply = new JSONObject();
         // Utente da iniziare a seguire
@@ -160,35 +153,47 @@ public class WinsomeWorker implements Runnable {
         // Utente che ha inviato la richiesta
         String follower = request.getJson().getString("user");
 
-        // Evito che l'utente da seguire non sia già seguito
-        if (server.getFollowing().get(follower) != null && server.getFollowing().get(follower).contains(toFollow)) {
-            ComUtility.attachError(-1, "Stai gia' seguendo questo utente", key);
-            return;
-        }
-        // Verifico che l'utente da seguire esista
-        if (!server.getUsers().containsKey(toFollow)) {
-            ComUtility.attachError(-2, "L'utente da seguire non esiste", key);
-            return;
-        }
-        // Evito che l'utente si segua da solo
-        if (toFollow.equals(follower)) {
-            ComUtility.attachError(-3, "Non puoi seguire te stess@", key);
-            return;
-        }
-        // Ottengo i tag in comune
-        String[] commonTags = getCommonTags(toFollow, follower);
-        // Ed evito che un utente possa seguire un utente con uci non condivide nessun tag
-        if (commonTags.length == 0) {
-            ComUtility.attachError(-4, "L'utente da seguire non condivide alcun interesse con te", key);
-            return;
+        ConcurrentHashMap<String, Vector<String>> followers = server.getFollowers();
+        ConcurrentHashMap<String, Vector<String>> following = server.getFollowers();
+
+        synchronized (following) {
+            // Evito che l'utente da seguire non sia già seguito
+            if (following.get(follower) != null && following.get(follower).contains(toFollow)) {
+                ComUtility.attachError(-1, "Stai gia' seguendo questo utente", key);
+                return;
+            }
+            // Verifico che l'utente da seguire esista
+            if (!server.getUsers().containsKey(toFollow)) {
+                ComUtility.attachError(-2, "L'utente da seguire non esiste", key);
+                return;
+            }
+            // Evito che l'utente si segua da solo
+            if (toFollow.equals(follower)) {
+                ComUtility.attachError(-3, "Non puoi seguire te stess@", key);
+                return;
+            }
+            // Ottengo i tag in comune
+            String[] commonTags = getCommonTags(toFollow, follower);
+            // Ed evito che un utente possa seguire un utente con uci non condivide nessun tag
+            if (commonTags.length == 0) {
+                ComUtility.attachError(-4, "L'utente da seguire non condivide alcun interesse con te", key);
+                return;
+            }
+
+            // Aggiungo l'utente da seguire alla lista dei following
+            if (!following.containsKey(follower)) {
+                following.put(follower, new Vector<>());
+            }
+            following.get(follower).add(toFollow);
         }
 
-        // Altrimenti prendo la map dei followers e aggiungo il nuovo follower
-        ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
-        if (!followers.containsKey(toFollow)) {
-            followers.put(toFollow, new ArrayList<>());
+        synchronized (followers) {
+            // Altrimenti prendo la map dei followers e aggiungo il nuovo follower
+            if (!followers.containsKey(toFollow)) {
+                followers.put(toFollow, new Vector<>());
+            }
+            followers.get(toFollow).add(follower);
         }
-        followers.get(toFollow).add(follower);
 
         // Notifico il client dell'aggiunta di un follower
         try {
@@ -197,13 +202,6 @@ public class WinsomeWorker implements Runnable {
         catch (IOException e) {
             System.err.println("Impossibile notificare l'utente dell'aggiunta di un follower");
         }
-
-        // Aggiungo l'utente da seguire alla lista dei following
-        ConcurrentHashMap<String, List<String>> following = server.getFollowing();
-        if (!following.containsKey(follower)) {
-            following.put(follower, new ArrayList<>());
-        }
-        following.get(follower).add(toFollow);
 
         reply.put("errCode", 0);
         reply.put("errMsg", "OK");
@@ -215,7 +213,7 @@ public class WinsomeWorker implements Runnable {
     /** Risolve le richieste di unfollow
      *
      */
-    public synchronized void unfollow() {
+    public void unfollow() {
         // Risposta
         JSONObject reply = new JSONObject();
         // Utente da smettere di seguire
@@ -228,49 +226,53 @@ public class WinsomeWorker implements Runnable {
             ComUtility.attachError(-2, "L'utente da smettere di seguire non esiste", key);
             return;
         }
-        ConcurrentHashMap<String, List<String>> followers = server.getFollowers();
-        // Se l'utente non sta ancora seguendo l'utente da smettere di seguire
-        if (followers.get(toUnfollow) == null || !followers.get(toUnfollow).contains(follower)) {
-            // Ritorna un codice di errore
-            ComUtility.attachError(-1, "Non stai ancora seguendo questo utente", key);
-            return;
-        }
+        ConcurrentHashMap<String, Vector<String>> followers = server.getFollowers();
+        synchronized (followers) {
+            // Se l'utente non sta ancora seguendo l'utente da smettere di seguire
+            if (followers.get(toUnfollow) == null || !followers.get(toUnfollow).contains(follower)) {
+                // Ritorna un codice di errore
+                ComUtility.attachError(-1, "Non stai ancora seguendo questo utente", key);
+                return;
+            }
 
-        // Altrimenti posso continuare a impostare le relazioni di follower-following
-        followers.get(toUnfollow).remove(follower);
-        // Invia la notifica di unfollow ai client connessi
-        try {
-            server.notifyUnfollow(follower, toUnfollow);
-        }
-        catch (IOException e) {
-            System.err.println("Errore nella notifica di unfollow");
+            // Altrimenti posso continuare a impostare le relazioni di follower-following
+            followers.get(toUnfollow).remove(follower);
+            // Invia la notifica di unfollow ai client connessi
+            try {
+                server.notifyUnfollow(follower, toUnfollow);
+            } catch (IOException e) {
+                System.err.println("Errore nella notifica di unfollow");
+            }
         }
 
         // Aggiorna la lista dei following dell'ex-follower
-        ConcurrentHashMap<String, List<String>> following = server.getFollowing();
-        following.get(follower).remove(toUnfollow);
+        ConcurrentHashMap<String, Vector<String>> following = server.getFollowing();
+        synchronized (following) {
+            following.get(follower).remove(toUnfollow);
 
-        reply.put("errCode", 0);
-        reply.put("errMsg", "OK");
+            reply.put("errCode", 0);
+            reply.put("errMsg", "OK");
 
-        key.attach(reply.toString());
+            key.attach(reply.toString());
+        }
     }
 
     /** Risolve le richieste di creazione di un nuovo post
      *
      */
-    public synchronized void createPost() {
+    public void createPost() {
         // Ottenimento dei parametri di creazione
         JSONObject req = request.getJson();
         String user = req.getString("user");
-        ConcurrentHashMap<String, List<Post>> posts = server.getAuthorPost();
+        ConcurrentHashMap<String, Vector<Long>> posts = server.getAuthorPost();
         Post toAdd = new Post(req.getString("postTitle"), req.getString("postContent"), user);
 
         // Aggiunta del post alla lista
-        posts.computeIfAbsent(user, k -> new ArrayList<>());
-        posts.get(user).add(toAdd);
-        server.getPosts().put(toAdd.getId(), toAdd);
-
+        synchronized (posts) {
+            posts.computeIfAbsent(user, k -> new Vector<>());
+            posts.get(user).add(toAdd.getId());
+            server.getPosts().put(toAdd.getId(), toAdd);
+        }
         // Invio di un ack
         ComUtility.attachAck(key);
     }
@@ -285,16 +287,17 @@ public class WinsomeWorker implements Runnable {
         // Utente che ha richiesto la visualizzazione del blog
         String user = request.getJson().getString("user");
         // Ottenimento dei post di cui user è l'autore
-        List<Post> userBlog = server.getAuthorPost().get(user);
-        if (userBlog == null) {
-            userBlog = new ArrayList<>();
-        }
+        Vector<Long> userBlog = server.getAuthorPost().get(user);
+        Vector<Post> ret = new Vector<>();
+
+        for (Long p : userBlog)
+            ret.add(server.getPosts().get(p));
 
         // Ordino la lista dei post per data decrescente
-        Collections.sort(userBlog);
+        Collections.sort(ret);
 
         // Aggiungo i post alla risposta e la invio
-        reply.put("items", new Gson().toJson(userBlog));
+        reply.put("items", new Gson().toJson(ret));
         key.attach(reply.toString());
     }
 
@@ -308,7 +311,7 @@ public class WinsomeWorker implements Runnable {
         // Utente che ha inoltrato la richiesta
         String user = request.getJson().getString("user");
         // Ottenimento del feed
-        List<Post> userFeed = getFeed(user);
+        Vector<Post> userFeed = getFeed(user);
 
         // Invio del feed
         reply.put("items", new Gson().toJson(userFeed));
@@ -319,7 +322,7 @@ public class WinsomeWorker implements Runnable {
     /** Risolve le richieste di voto di un post: se il voto riguarda un rewin, viene votato il post originale
      *
      */
-    public synchronized void ratePost() {
+    public void ratePost() {
         // Parametri della richiesta
         JSONObject req = request.getJson();
         // Utente che ha inoltrato la richiesta
@@ -328,42 +331,49 @@ public class WinsomeWorker implements Runnable {
         Long post = req.getLong("post");
         // Salvo il post nel caso fosse un rewin
         Long originalPost = post;
-        // Se è un rewin, allora ottengo il post originale
-        if (server.getPosts().get(post).isRewin())
-            post = getOriginalPost(post);
+        ConcurrentHashMap<Long, Post> posts = server.getPosts();
 
-        // Prendo i voti correnti del post originale
-        ConcurrentHashMap<Long, List<Vote>> votes = server.getVotes();
-        List<Vote> currVotes = votes.get(post);
+        synchronized (posts) {
+            // Se è un rewin, allora ottengo il post originale
+            if (posts.get(post).isRewin())
+                post = getOriginalPost(post);
 
-        // Verifico che il voto non sia già stato inserito
-        if (currVotes != null) {
-            for (Vote v : currVotes) {
-                if (v.getUser().equals(author)) {
-                    ComUtility.attachError(-1, "Errore di votazione: hai gia' votato questo post.", key);
-                    return;
-                }
+            // Controllo che l'utente possa visualizzare il post che desidera votare nel proprio feed
+            if (!getFeed(author).contains(posts.get(originalPost))) {
+                ComUtility.attachError(-2, "Errore di votazione: non puoi votare un post che non fa " +
+                        "parte del tuo feed", key);
+                return;
+            }
+
+            // Evito che un utente si autovaluti
+            if (posts.get(post).getAuthor().equals(author)) {
+                ComUtility.attachError(-3, "Errore di votazione: non puoi votare un tuo post.", key);
+                return;
             }
         }
-        // E controllo che l'utente possa visualizzare il post che desidera votare nel proprio feed
-        if (!getFeed(author).contains(server.getPosts().get(originalPost))) {
-            ComUtility.attachError(-2, "Errore di votazione: non puoi votare un post che non fa " +
-                    "parte del tuo feed", key);
-            return;
-        }
-        // Infine evito che un utente si autovaluti
-        if (server.getPosts().get(post).getAuthor().equals(author)) {
-            ComUtility.attachError(-3, "Errore di votazione: non puoi votare un tuo post.", key);
-            return;
-        }
 
-        // Se i controlli sono stati superati, aggiungo il post
-        if (currVotes == null) {
-            votes.put(post, new ArrayList<>());
-            currVotes = votes.get(post);
+        // Prendo i voti correnti del post originale
+        ConcurrentHashMap<Long, Vector<Vote>> votes = server.getVotes();
+        Vector<Vote> currVotes = votes.get(post);
+
+        if (currVotes != null) {
+            synchronized (currVotes) {
+                // Verifico che il voto non sia già stato inserito
+                for (Vote v : currVotes) {
+                    if (v.getUser().equals(author)) {
+                        ComUtility.attachError(-1, "Errore di votazione: hai gia' votato questo post.", key);
+                        return;
+                    }
+                }
+
+                // Se i controlli sono stati superati, aggiungo il post
+                votes.put(post, new Vector<>());
+                currVotes = votes.get(post);
+
+                Vote toAdd = new Vote(author, req.getInt("value"));
+                currVotes.add(toAdd);
+            }
         }
-        Vote toAdd = new Vote(author, req.getInt("value"));
-        currVotes.add(toAdd);
 
         ComUtility.attachAck(key);
     }
@@ -373,32 +383,34 @@ public class WinsomeWorker implements Runnable {
      *  il commento sul post originale
      *
      */
-    public synchronized void addComment() {
+    public void addComment() {
         // Parametri di richiesta
         JSONObject req = request.getJson();
         // Utente che ha inoltrato la richiesta
         String user = req.getString("user");
         // Post da commentare
         Long post = req.getLong("post");
-        // Usata
-        ConcurrentHashMap<Long, List<Comment>> comments = server.getComments();
-        List<Post> userFeed = getFeed(user);
 
-        if (server.getAuthorPost().get(user) != null && server.getAuthorPost().get(user).contains(server.getPosts().get(post))) {
-            ComUtility.attachError(-1, "Errore nell'aggiunta del commento: non puoi commentare i tuoi " +
-                    "stessi post", key);
-            return;
-        }
-        if (!userFeed.contains(server.getPosts().get(post))) {
-            ComUtility.attachError(-2, "Errore nell'aggiunta del commento: impossibile commentare un" +
-                    " post non presente all'interno del feed", key);
-            return;
-        }
+        ConcurrentHashMap<String, Vector<Long>> posts = server.getAuthorPost();
+        ConcurrentHashMap<Long, Vector<Comment>> comments = server.getComments();
+        Vector<Post> userFeed = getFeed(user);
 
-        post = getOriginalPost(post);
+        synchronized (posts) {
+            if (posts != null && posts.get(user).contains(post)) {
+                ComUtility.attachError(-1, "Errore nell'aggiunta del commento: non puoi commentare i tuoi " +
+                        "stessi post", key);
+                return;
+            }
+            if (!userFeed.contains(server.getPosts().get(post))) {
+                ComUtility.attachError(-2, "Errore nell'aggiunta del commento: impossibile commentare un" +
+                        " post non presente all'interno del feed", key);
+                return;
+            }
+            post = getOriginalPost(post);
+        }
 
         synchronized (comments) {
-            comments.computeIfAbsent(post, k -> new ArrayList<>());
+            comments.computeIfAbsent(post, k -> new Vector<>());
             comments.get(post).add(new Comment(user, req.getString("comment")));
         }
 
@@ -419,50 +431,54 @@ public class WinsomeWorker implements Runnable {
         // Utente che ha richiesto la visualizzazione
         String user = req.getString("user");
         // Feed dell'utente
-        List<Post> feed = getFeed(user);
-        // Oggetto Post da visualizzare
-        Post toShow = server.getPosts().get(post);
+        Vector<Post> feed = getFeed(user);
+        // Mappa dei post
+        ConcurrentHashMap<Long, Post> posts = server.getPosts();
 
-        // Se il post esiste e (il post è nel feed o nel blog dell'utente)
-        if (toShow != null && (feed.contains(toShow) || toShow.getAuthor().equals(user))) {
-            // Tengo traccia dei voti
-            int nNegative = 0;
-            int nPositive = 0;
+        synchronized (posts) {
+            // Oggetto Post da visualizzare
+            Post toShow = posts.get(post);
 
-            // Ottengo il post originale nel caso l'id si riferisca a un suo rewin
-            post = getOriginalPost(post);
-            // Ottengo l'oggetto Post corrispondente
-            toShow = server.getPosts().get(post);
+            // Se il post esiste e (il post è nel feed o nel blog dell'utente)
+            if (toShow != null && (feed.contains(toShow) || toShow.getAuthor().equals(user))) {
+                // Tengo traccia dei voti
+                int nNegative = 0;
+                int nPositive = 0;
 
-            // Ottengo i commenti di quel post
-            List<Comment> comments = server.getComments().get(post);
-            // E i voti
-            List<Vote> votes = server.getVotes().get(post);
+                // Ottengo il post originale nel caso l'id si riferisca a un suo rewin
+                post = getOriginalPost(post);
+                // Ottengo l'oggetto Post corrispondente
+                toShow = posts.get(post);
 
-            // Calcolo i voti positivi e quelli negativi
-            if (votes != null) {
-                for (Vote v : votes) {
-                    if (v.isPositive())
-                        nPositive++;
-                    else
-                        nNegative++;
+                // Ottengo i commenti di quel post
+                Vector<Comment> comments = server.getComments().get(post);
+                // E i voti
+                Vector<Vote> votes = server.getVotes().get(post);
+
+                // Calcolo i voti positivi e quelli negativi
+                if (votes != null) {
+                    for (Vote v : votes) {
+                        if (v.isPositive())
+                            nPositive++;
+                        else
+                            nNegative++;
+                    }
                 }
+
+                // Invio la risposta con i dettagli desiderati dal client
+                reply.put("errCode", 0);
+                reply.put("errMsg", "OK");
+                reply.put("title", toShow.getTitle());
+                reply.put("comments", new Gson().toJson(comments));
+                reply.put("nUpvotes", nPositive);
+                reply.put("nDownvotes", nNegative);
+                reply.put("content", toShow.getContent());
+
+                key.attach(reply.toString());
+            } else {
+                ComUtility.attachError(-1, "Errore di visualizzazione: non sei autorizzato a vedere questo post",
+                        key);
             }
-
-            // Invio la risposta con i dettagli desiderati dal client
-            reply.put("errCode", 0);
-            reply.put("errMsg", "OK");
-            reply.put("title", toShow.getTitle());
-            reply.put("comments", new Gson().toJson(comments));
-            reply.put("nUpvotes", nPositive);
-            reply.put("nDownvotes", nNegative);
-            reply.put("content", toShow.getContent());
-
-            key.attach(reply.toString());
-        }
-        else {
-            ComUtility.attachError(-1, "Errore di visualizzazione: non sei autorizzato a vedere questo post",
-                    key);
         }
     }
 
@@ -470,7 +486,7 @@ public class WinsomeWorker implements Runnable {
     /** Risolve le richieste di eliminazione di un post
      *
      */
-    public synchronized void deletePost() {
+    public void deletePost() {
         // Dettagli richiesta
         JSONObject req = request.getJson();
         // Utente che ha richiesto l'eliminazione del post
@@ -497,7 +513,7 @@ public class WinsomeWorker implements Runnable {
         // Se non sto rimuovendo un rewin, allora cancello anche commenti e voti, oltre a rimuovere il post dalla
         // lista dei post creati dall'utente
         if (!toDelete.isRewin()) {
-            server.getAuthorPost().get(user).remove(toDelete);
+            server.getAuthorPost().get(user).remove(toDelete.getId());
             // Rimuovo i voti
             server.getVotes().remove(post);
             // Rimuovo i commenti
@@ -520,7 +536,7 @@ public class WinsomeWorker implements Runnable {
         // Id del post da rewinnare
         Long post = req.getLong("post");
         // Feed dell'utente
-        List<Post> feed = getFeed(user);
+        Vector<Post> feed = getFeed(user);
 
         // Verifico che il post da rewinnare sia visibile dall'utente
         if (!feed.contains(server.getPosts().get(post))) {
@@ -540,7 +556,7 @@ public class WinsomeWorker implements Runnable {
         // Creo un post di rewin, basato sul post originale (quindi se sto rewinnando un rewin, non faccio altro che
         // rewinnare il post originale)
         Post toAdd = new Post(server.getPosts().get(getOriginalPost(post)), user);
-        server.getRewins().computeIfAbsent(post, k -> new ArrayList<>());
+        server.getRewins().computeIfAbsent(post, k -> new Vector<>());
         server.getRewins().get(post).add(toAdd.getId());
         server.getPosts().put(toAdd.getId(), toAdd);
 
@@ -610,9 +626,9 @@ public class WinsomeWorker implements Runnable {
      * @param user Utente di cui si desidera ottenere il feed
      * @return Lista di post che rappresenta il feed dell'utente al momento della chiamata
      */
-    private List<Post> getFeed(String user) {
-        List<Post> ret = new ArrayList<>();
-        List<String> following = server.getFollowing().get(user);
+    private Vector<Post> getFeed(String user) {
+        Vector<Post> ret = new Vector<>();
+        Vector<String> following = server.getFollowing().get(user);
 
         if (following != null) {
             for (Post p : server.getPosts().values()) {

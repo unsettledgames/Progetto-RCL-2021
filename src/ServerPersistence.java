@@ -8,6 +8,7 @@ import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** ServerPersistence è la classe, pensata per essere usata come thread indipendente, che si occupa di salvare lo stato
@@ -50,7 +51,7 @@ public class ServerPersistence extends Thread {
                 toLoad.setUsers(gson.fromJson(json.getString("users"), type));
 
             // Carica following e followers
-            type = new TypeToken<ConcurrentHashMap<String, List<String>>>(){}.getType();
+            type = new TypeToken<ConcurrentHashMap<String, Vector<String>>>(){}.getType();
             if (json.has("following"))
                 toLoad.setFollowing(gson.fromJson(json.getString("following"), type));
             if (json.has("followers"))
@@ -61,15 +62,15 @@ public class ServerPersistence extends Thread {
             if (json.has("posts"))
                 toLoad.setPosts(gson.fromJson(json.getString("posts"), type));
             // Carica voti
-            type = new TypeToken<ConcurrentHashMap<Long, List<Vote>>>(){}.getType();
+            type = new TypeToken<ConcurrentHashMap<Long, Vector<Vote>>>(){}.getType();
             if (json.has("votes"))
                 toLoad.setVotes(gson.fromJson(json.getString("votes"), type));
             // Carica commenti
-            type = new TypeToken<ConcurrentHashMap<Long, List<Comment>>>(){}.getType();
+            type = new TypeToken<ConcurrentHashMap<Long, Vector<Comment>>>(){}.getType();
             if (json.has("comments"))
                 toLoad.setComments(gson.fromJson(json.getString("comments"), type));
             // Carica rewins
-            type = new TypeToken<ConcurrentHashMap<Long, List<Long>>>(){}.getType();
+            type = new TypeToken<ConcurrentHashMap<Long, Vector<Long>>>(){}.getType();
             if (json.has("rewins"))
                 toLoad.setRewins(gson.fromJson(json.getString("rewins"), type));
         }

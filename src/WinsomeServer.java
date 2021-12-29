@@ -39,31 +39,31 @@ class WinsomeServer implements Runnable, IRemoteServer {
     // ThreadPool che si occupa di gestire le richieste provenienti dai client
     private final ExecutorService threadPool;
     // Lista di stub di client da notificare riguardo nuovi follower o unfollowing
-    private final HashMap<String, IRemoteClient> toNotify;
+    private final ConcurrentHashMap<String, IRemoteClient> toNotify;
 
     // Dati del social
     // Sessioni attive al momento: a uno username si collega la SelectionKey del rispettivo client
-    private final HashMap<String, SelectionKey> activeSessions;
+    private final ConcurrentHashMap<String, SelectionKey> activeSessions;
 
     // Dati relativi agli utenti e alle relazioni tra loro
     // Utenti: a ogni username corrisponde un oggetto che rappresenta il rispettivo utente
     private ConcurrentHashMap<String, User> users;
     // Followers: a ogni username corrisponde la lista degli username degli utenti che lo seguono
-    private ConcurrentHashMap<String, List<String>> followers;
+    private ConcurrentHashMap<String, Vector<String>> followers;
     // Following: a ogni username corrisponde la lista degli username degli utenti seguiti
-    private ConcurrentHashMap<String, List<String>> following;
+    private ConcurrentHashMap<String, Vector<String>> following;
 
     // Dati relativi a post, voti, commenti e rewin
     // Mette in relazione ogni username con la lista di post che ha creato
-    private final ConcurrentHashMap<String, List<Post>> authorPost;
+    private final ConcurrentHashMap<String, Vector<Long>> authorPost;
     // Posts: a ogni id di post corrisponde l'oggetto che rappresenta l'oggetto
     private ConcurrentHashMap<Long, Post> posts;
     // Voti: a ogni id di post corrisponde la lista delle valutazioni che quel post ha ricevuto
-    private ConcurrentHashMap<Long, List<Vote>> votes;
+    private ConcurrentHashMap<Long, Vector<Vote>> votes;
     // Commenti: a ogni id di post corrisponde la lista dei commenti che quel post ha ricevuto
-    private ConcurrentHashMap<Long, List<Comment>> comments;
+    private ConcurrentHashMap<Long, Vector<Comment>> comments;
     // Rewins: a ogni id di post originale corrisponde la lista degli id dei post di rewin di quel post originale
-    private ConcurrentHashMap<Long, List<Long>> rewins;
+    private ConcurrentHashMap<Long, Vector<Long>> rewins;
 
     // Altri parametri
     // Intervallo di tempo che intercorre tra un calcolo delle ricompense e l'altro
@@ -78,8 +78,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
      *
      */
     public WinsomeServer() {
-        toNotify = new HashMap<>();
-        activeSessions = new HashMap<>();
+        toNotify = new ConcurrentHashMap<>();
+        activeSessions = new ConcurrentHashMap<>();
 
         users = new ConcurrentHashMap<>();
         followers = new ConcurrentHashMap<>();
@@ -372,7 +372,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
         toNotify.put(username, client);
 
         // Invia i follower correnti del client
-        List<String> followers = this.followers.get(username);
+        Vector<String> followers = this.followers.get(username);
         if (followers != null) {
             for (String follower : followers) {
                 client.newFollower(follower, false);
@@ -448,24 +448,25 @@ class WinsomeServer implements Runnable, IRemoteServer {
     }
 
     // Semplici getters per gli attributi
+    public ConcurrentHashMap<String, SelectionKey> getActiveSessions(){return activeSessions;}
     public ConcurrentHashMap<String, User> getUsers() {return users;}
-    public ConcurrentHashMap<String, List<String>> getFollowers() {return followers;}
-    public ConcurrentHashMap<String, List<String>> getFollowing() {return following;}
-    public ConcurrentHashMap<String, List<Post>> getAuthorPost() {return authorPost;}
-    public ConcurrentHashMap<Long, List<Vote>> getVotes() {return votes;}
+    public ConcurrentHashMap<String, Vector<String>> getFollowers() {return followers;}
+    public ConcurrentHashMap<String, Vector<String>> getFollowing() {return following;}
+    public ConcurrentHashMap<String, Vector<Long>> getAuthorPost() {return authorPost;}
+    public ConcurrentHashMap<Long, Vector<Vote>> getVotes() {return votes;}
     public ConcurrentHashMap<Long, Post> getPosts() {return posts;}
-    public ConcurrentHashMap<Long, List<Comment>> getComments() {return this.comments;}
-    public ConcurrentHashMap<Long, List<Long>> getRewins() {return this.rewins;}
+    public ConcurrentHashMap<Long, Vector<Comment>> getComments() {return this.comments;}
+    public ConcurrentHashMap<Long, Vector<Long>> getRewins() {return this.rewins;}
     public String getMulticastAddress() {return this.multicastAddress;}
     public int getMulticastPort() {return this.udpPort;}
 
     // Semplici setters per gli attributi
     public void setUsers(ConcurrentHashMap<String, User> users) {this.users = users;}
-    public void setFollowers(ConcurrentHashMap<String, List<String>> followers) {this.followers = followers;}
-    public void setFollowing(ConcurrentHashMap<String, List<String>> following) {this.following = following;}
-    public void setVotes(ConcurrentHashMap<Long, List<Vote>> votes){this.votes = votes;}
-    public void setComments(ConcurrentHashMap<Long, List<Comment>> comments){this.comments = comments;}
-    public void setRewins(ConcurrentHashMap<Long, List<Long>> rewins) { this.rewins = rewins; }
+    public void setFollowers(ConcurrentHashMap<String, Vector<String>> followers) {this.followers = followers;}
+    public void setFollowing(ConcurrentHashMap<String, Vector<String>> following) {this.following = following;}
+    public void setVotes(ConcurrentHashMap<Long, Vector<Vote>> votes){this.votes = votes;}
+    public void setComments(ConcurrentHashMap<Long, Vector<Comment>> comments){this.comments = comments;}
+    public void setRewins(ConcurrentHashMap<Long, Vector<Long>> rewins) { this.rewins = rewins; }
 
     /** Imposta la lista dei post. Essendo chiamata dal ServerPersistence per caricare il server, oltre a caricare i
      *  post, si assegnano anche i post originali agli autori (i rewin non vengono assegnati a un autore)
@@ -478,8 +479,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
 
         for (Post p : posts.values()) {
             if (!p.isRewin()) {
-                this.authorPost.computeIfAbsent(p.getAuthor(), k -> new ArrayList<>());
-                this.authorPost.get(p.getAuthor()).add(p);
+                this.authorPost.computeIfAbsent(p.getAuthor(), k -> new Vector<>());
+                this.authorPost.get(p.getAuthor()).add(p.getId());
                 postId = Math.max(postId, p.getId());
             }
         }
