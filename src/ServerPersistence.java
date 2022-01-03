@@ -1,4 +1,5 @@
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -7,7 +8,6 @@ import java.io.*;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -21,7 +21,7 @@ public class ServerPersistence extends Thread {
     // Nome del file di salvataggio
     private final String fileName;
     // Server da salvare
-    private final WinsomeServer server;
+    private final WinsomeServerMain server;
 
     /** Semplice costruttore in cui si assegnano gli attributi necessari
      *
@@ -29,7 +29,7 @@ public class ServerPersistence extends Thread {
      * @param fileName Nome del file di salvataggio
      * @param updateRateMillis Intervallo di salvataggio
      */
-    public ServerPersistence(WinsomeServer toSave, String fileName, long updateRateMillis) {
+    public ServerPersistence(WinsomeServerMain toSave, String fileName, long updateRateMillis) {
         this.updateRateMillis = updateRateMillis;
         this.server = toSave;
         this.fileName = fileName;
@@ -40,7 +40,7 @@ public class ServerPersistence extends Thread {
      * @param fileName Nome del file conenente i dati del server
      * @param toLoad Nome del server i cui dati devono essere recuperati
      */
-    public static void loadServer(String fileName, WinsomeServer toLoad) {
+    public static void loadServer(String fileName, WinsomeServerMain toLoad) {
         try {
             JSONObject json = new JSONObject(Files.readString(Paths.get(fileName)));
             Gson gson = new Gson();
@@ -81,31 +81,35 @@ public class ServerPersistence extends Thread {
         }
     }
 
+    public void saveServer() {
+        // Prepara utility per json
+        JSONObject json = new JSONObject();
+        Gson gson = new Gson();
+
+        // Serializza oggetti principali
+        json.put("users", gson.toJson(server.getUsers()));
+        json.put("followers", gson.toJson(server.getFollowers()));
+        json.put("following", gson.toJson(server.getFollowing()));
+        json.put("posts", gson.toJson(server.getPosts()));
+        json.put("votes", gson.toJson(server.getVotes()));
+        json.put("comments", gson.toJson(server.getComments()));
+        json.put("rewins", gson.toJson(server.getRewins()));
+
+        // Salva su file
+        try (FileWriter writer = new FileWriter(fileName)){
+            writer.write(json.toString(4));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     /** Ciclo di salvataggio dei dati: il server, a ogni iterazione, salva il contenuto del server su file e aspetta
      *  un certo periodo di tempo specificato al momento della creazione del thread.
      *
      */
     public void run() {
         while (true) {
-            // Prepara utility per json
-            JSONObject json = new JSONObject();
-            Gson gson = new Gson();
-
-            // Serializza oggetti principali
-            json.put("users", gson.toJson(server.getUsers()));
-            json.put("followers", gson.toJson(server.getFollowers()));
-            json.put("following", gson.toJson(server.getFollowing()));
-            json.put("posts", gson.toJson(server.getPosts()));
-            json.put("votes", gson.toJson(server.getVotes()));
-            json.put("comments", gson.toJson(server.getComments()));
-            json.put("rewins", gson.toJson(server.getRewins()));
-
-            // Salva su file
-            try (FileWriter writer = new FileWriter(fileName)){
-                writer.write(json.toString(4));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            saveServer();
 
             // Aspetta prima di salvare di nuovo
             try {

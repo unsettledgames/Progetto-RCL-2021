@@ -34,7 +34,7 @@ import static java.lang.Math.min;
  *  non esaudibile, caricherebbe il server di inutile lavoro.
  *
  */
-class WinsomeClient extends RemoteObject implements IRemoteClient {
+class WinsomeClientMain extends RemoteObject implements IRemoteClient {
     // Dati di connessione
     // Stub del server usato per registrare nuovi utenti
     private final IRemoteServer signupObject;
@@ -60,7 +60,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
      * @throws RemoteException In caso di fallimento nella creazione dell'oggetto RMI
      * @throws NotBoundException In caso di fallimento nella ricerca dello stub di registrazione del server
      */
-    public WinsomeClient() throws RemoteException, NotBoundException {
+    public WinsomeClientMain() throws RemoteException, NotBoundException {
         super();
         Registry r = LocateRegistry.getRegistry(6667);
         Remote ro = r.lookup("WINSOME_SERVER");
@@ -326,8 +326,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
                             for (String name : names.keySet())
                                 output.addRow(name, Arrays.toString(names.get(name)));
                             output.print();
-                        } else
-                            return;
+                        }
                     }
                     catch (IOException e) {
                         System.err.println("Errore di comunicazione tra client e server");
@@ -910,7 +909,7 @@ class WinsomeClient extends RemoteObject implements IRemoteClient {
     public static void main(String[] args) {
         try {
             // Crea il client e connettilo al server
-            WinsomeClient client = new WinsomeClient();
+            WinsomeClientMain client = new WinsomeClientMain();
             client.connect();
             // Lettore dei comandi dell'utente
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));

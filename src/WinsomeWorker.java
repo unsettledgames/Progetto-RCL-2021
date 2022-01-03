@@ -13,7 +13,7 @@ public class WinsomeWorker implements Runnable {
     // Richiesta da risolvere
     private final ClientRequest request;
     // Server contenente i dati necessari per risolvere le richieste e a cui inoltrare eventuali risultati
-    private final WinsomeServer server;
+    private final WinsomeServerMain server;
     // SelectionKey corrispondente al client che ha effettuato la richiesta
     private final SelectionKey key;
 
@@ -22,7 +22,7 @@ public class WinsomeWorker implements Runnable {
      * @param server Server da cui si ha ricevuto la richiesta
      * @param request Richiesta ricevuta
      */
-    public WinsomeWorker(WinsomeServer server, ClientRequest request) {
+    public WinsomeWorker(WinsomeServerMain server, ClientRequest request) {
         this.request = request;
         this.server = server;
         this.key = request.getKey();

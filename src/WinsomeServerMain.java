@@ -16,7 +16,7 @@ import java.net.InetSocketAddress;
 import java.rmi.*;
 
 
-class WinsomeServer implements Runnable, IRemoteServer {
+class WinsomeServerMain implements Runnable, IRemoteServer {
     // Parametri di rete e connessione
     // Indirizzo UDP multicast del server
     private String multicastAddress;
@@ -65,6 +65,10 @@ class WinsomeServer implements Runnable, IRemoteServer {
     // Rewins: a ogni id di post originale corrisponde la lista degli id dei post di rewin di quel post originale
     private ConcurrentHashMap<Long, Vector<Long>> rewins;
 
+    // Threads
+    // Thread gestore della persistenza
+    private ServerPersistence persistenceThread;
+
     // Altri parametri
     // Intervallo di tempo che intercorre tra un calcolo delle ricompense e l'altro
     private long rewardRate;
@@ -77,7 +81,7 @@ class WinsomeServer implements Runnable, IRemoteServer {
     /** Semplice costruttore che si occupa di inizializzare le strutture dati
      *
      */
-    public WinsomeServer() {
+    public WinsomeServerMain() {
         toNotify = new ConcurrentHashMap<>();
         activeSessions = new ConcurrentHashMap<>();
 
@@ -195,15 +199,15 @@ class WinsomeServer implements Runnable, IRemoteServer {
         System.out.println("Caricati dati del server");
 
         // Inizia la routine di salvataggio dei dati
-        Thread sp = new ServerPersistence(this, "data.json", autoSaveRate);
-        sp.setDaemon(true);
-        sp.start();
+        persistenceThread = new ServerPersistence(this, "data.json", autoSaveRate);
+        persistenceThread.setDaemon(true);
+        persistenceThread.start();
         System.out.println("Abilitato salvataggio server");
 
         // Inizia la routine di calcolo delle ricompense
-        sp = new ServerRewards(this, rewardRate, authorRewardPercentage);
-        sp.setDaemon(true);
-        sp.start();
+        Thread sr = new ServerRewards(this, rewardRate, authorRewardPercentage);
+        sr.setDaemon(true);
+        sr.start();
 
         // Apri connessione multicast per notifica delle ricompense
         multicastSocket = new DatagramSocket();
@@ -265,30 +269,8 @@ class WinsomeServer implements Runnable, IRemoteServer {
                         } else {
                             // Ricrea l'oggetto json
                             JSONObject json = new JSONObject(content);
-                            // Indica se la richiesta è stata accettata dal pool o meno
-                            boolean accepted = false;
-                            // Quando i diventa 5, il server esegue manualmente la richiesta
-                            int i = 0;
-
-                            // Provo a inviare la richiesta per 5 volte aspettando piccoli intervalli di tempo
-                            while (!accepted && i < 5) {
-                                try {
-                                    // Avvia l'esecuzione della richiesta ricevuta
-                                    this.threadPool.execute(new WinsomeWorker(this, new ClientRequest(currKey, json)));
-                                    accepted = true;
-                                }
-                                catch (RejectedExecutionException e) {
-                                    i++;
-                                    if (i == 5) {
-                                        new WinsomeWorker(this, new ClientRequest(currKey, json)).run();
-                                    }
-                                    try {
-                                        Thread.sleep(5);
-                                    } catch (InterruptedException ex) {
-                                        System.err.println("Thread interrotto nel tentativo di risolvere una richiesta");
-                                    }
-                                }
-                            }
+                            // Avvia l'esecuzione della richiesta ricevuta
+                            this.threadPool.execute(new WinsomeWorker(this, new ClientRequest(currKey, json)));
                         }
                     }
                     // Se la chiave è writable, è valida e ha un allegato, lo spedisco
@@ -326,6 +308,61 @@ class WinsomeServer implements Runnable, IRemoteServer {
         System.out.println("Servizio di registrazione attivo");
     }
 
+    public void configShutdown() {
+        Runtime.getRuntime().addShutdownHook(
+            new Thread(
+                () -> {
+                    System.out.println("Chiusura del server avviata");
+                    // Tento di finire i task correnti
+                    threadPool.shutdown();
+
+                    // Se non ci sono riuscito in un minuto, chiudo comunque
+                    try {
+                        if (!threadPool.awaitTermination(60, TimeUnit.SECONDS)) {
+                            threadPool.shutdownNow();
+                        }
+                    }
+                    catch (InterruptedException e) {
+                        threadPool.shutdownNow();
+                    }
+                    System.out.println("Task terminati");
+
+                    // Invio eventuali risposte e chiudo le connessioni
+                    // Select
+                    try {
+                        selector.select();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                    // Ottenimento delle chiavi pronte
+                    Set<SelectionKey> readyKeys = selector.selectedKeys();
+                    Iterator<SelectionKey> keyIt = readyKeys.iterator();
+
+                    while (keyIt.hasNext()) {
+                        SelectionKey currKey = keyIt.next();
+                        keyIt.remove();
+
+                        if (currKey.isWritable() && currKey.isValid() && currKey.attachment() != null) {
+                            try {
+                                ComUtility.sendAsync(currKey);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            currKey.cancel();
+                        }
+                    }
+                    System.out.println("Connessioni chiuse");
+
+                    // Salvo lo stato del server
+                    persistenceThread.saveServer();
+                    System.out.println("Stato del server salvato");
+
+                }
+            )
+        );
+    }
+
     /** Implementa la procedura di registrazione per un utente
      *
      * @param username Nome utente
@@ -338,22 +375,25 @@ class WinsomeServer implements Runnable, IRemoteServer {
     public String signup(String username, String password, String[] tags) throws RemoteException {
         // Non registrare un nuovo utente se lo username è già preso
         JSONObject ret = new JSONObject();
-        if (users.containsKey(username)) {
-            ret.put("errCode", -1);
-            ret.put("errMsg", "Utente gia' esistente");
-        }
-        // Verifica che lo username sia lungo da 1 a 15 caratteri, che contenga solo caratteri alfanumerici o underscores
-        else if (!username.matches("^@?(\\w){1,15}$")) {
-            ret.put("errCode", -2);
-            ret.put("errMsg", "Username non valido: dev'essere lungo almeno 1 carattere e al massimo 15 e puo' contenere solo " +
-                    "caratteri latini, underscores e numeri");
-        }
-        // Se tutto va bene, aggiungi un nuovo utente con le caratteristiche specificate
-        else {
-            User toAdd = new User(username, password, tags);
-            users.put(username, toAdd);
-            ret.put("errCode", 0);
-            ret.put("errMsg", "Ok");
+
+        synchronized (users) {
+            if (users.containsKey(username)) {
+                ret.put("errCode", -1);
+                ret.put("errMsg", "Utente gia' esistente");
+            }
+            // Verifica che lo username sia lungo da 1 a 15 caratteri, che contenga solo caratteri alfanumerici o underscores
+            else if (!username.matches("^@?(\\w){1,15}$")) {
+                ret.put("errCode", -2);
+                ret.put("errMsg", "Username non valido: dev'essere lungo almeno 1 carattere e al massimo 15 e puo' contenere solo " +
+                        "caratteri latini, underscores e numeri");
+            }
+            // Se tutto va bene, aggiungi un nuovo utente con le caratteristiche specificate
+            else {
+                User toAdd = new User(username, password, tags);
+                users.put(username, toAdd);
+                ret.put("errCode", 0);
+                ret.put("errMsg", "Ok");
+            }
         }
 
         // Ritorna l'esito
@@ -494,13 +534,14 @@ class WinsomeServer implements Runnable, IRemoteServer {
             throw new ConfigException(" File non indicato");
         }
         // Crea il server
-        WinsomeServer server = new WinsomeServer();
+        WinsomeServerMain server = new WinsomeServerMain();
 
         // Configuralo e aprilo secondo i parametri del file
         try {
             server.config(args[0]);
             server.open();
             server.enableRMI();
+            server.configShutdown();
 
             // Inizia la routine di gestione delle connessioni
             Thread serverThread = new Thread(server);

@@ -4,7 +4,7 @@ import java.util.Vector;
 
 public class ServerRewards extends Thread{
     // Server contenente i dati necessari per calcolare le ricompense
-    private final WinsomeServer server;
+    private final WinsomeServerMain server;
     // Intervallo di tempo da aspettare per il prossimo calcolo delle ricompense
     private final long rewardRateMillis;
     // Percentuale della ricompensa assegnata all'autore del post
@@ -19,7 +19,7 @@ public class ServerRewards extends Thread{
      * @param rewardRateMillis Interavallo di calcolo delle ricompense
      * @param authorPercentage Percentuale di ricompensa che spetta all'autore di un post
      */
-    public ServerRewards(WinsomeServer server, long rewardRateMillis, double authorPercentage) {
+    public ServerRewards(WinsomeServerMain server, long rewardRateMillis, double authorPercentage) {
         this.authorPercentage = authorPercentage;
         this.server = server;
         this.rewardRateMillis = rewardRateMillis;
