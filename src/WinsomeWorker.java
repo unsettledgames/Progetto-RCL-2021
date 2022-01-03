@@ -667,7 +667,7 @@ public class WinsomeWorker implements Runnable {
      */
     private synchronized Long getOriginalPost(Long rewin) {
         if (server.getPosts().get(rewin).isRewin()) {
-            Iterator<Long> postsIt = server.getRewins().keys().asIterator();
+            Iterator<Long> postsIt = server.getRewins().keySet().iterator();
 
             // Finché non ho trovato il post originale
             while (postsIt.hasNext()) {

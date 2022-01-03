@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /** ServerPersistence è la classe, pensata per essere usata come thread indipendente, che si occupa di salvare lo stato
  *  del server a intervalli di tempo regolari. La classe mette inoltre a disposizione un metodo statico usato per
@@ -42,7 +43,7 @@ public class ServerPersistence extends Thread {
      */
     public static void loadServer(String fileName, WinsomeServerMain toLoad) {
         try {
-            JSONObject json = new JSONObject(Files.readString(Paths.get(fileName)));
+            JSONObject json = new JSONObject(Files.lines(Paths.get(fileName)).collect(Collectors.joining("")));
             Gson gson = new Gson();
 
             // Carica utenti

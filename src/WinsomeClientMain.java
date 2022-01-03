@@ -305,7 +305,7 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
         if (args != null) {
             switch (args[1]) {
                 // list users
-                case "users" -> {
+                case "users": {
                     // Imposto l'operazione corretta
                     request.put("op", OpCodes.LIST_USERS);
 
@@ -327,19 +327,20 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                                 output.addRow(name, Arrays.toString(names.get(name)));
                             output.print();
                         }
-                    }
-                    catch (IOException e) {
+                    } catch (IOException e) {
                         System.err.println("Errore di comunicazione tra client e server");
                     }
                 }
-                case "followers" -> {
+                break;
+                case "followers": {
                     // Nel caso dei follower, basta stampare gli oggetti contenuti nella lista di followers
                     output = new TableList("Nome utente").withUnicode(true);
                     for (String follower : followers)
                         output.addRow(follower);
                     output.print();
                 }
-                case "following" -> {
+                break;
+                case "following":{
                     request.put("op", OpCodes.LIST_FOLLOWING);
 
                     try {
@@ -363,6 +364,7 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                         System.err.println("Errore di comunicazione tra client e server");
                     }
                 }
+                break;
             }
         }
         else
@@ -674,7 +676,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
 
             try {
                 ComUtility.sendSync(req.toString(), socket);
-                JSONObject reply = new JSONObject(ComUtility.receive(socket));
+                String received = ComUtility.receive(socket);
+                JSONObject reply = new JSONObject(received);
 
                 // Se la richiesta è andata a buon fine
                 if (ClientError.handleError("Dettagli post " + args[2] + ": ",

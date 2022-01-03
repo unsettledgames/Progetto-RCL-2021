@@ -15,9 +15,11 @@ public class ComUtility {
      */
     public static void attachError(int code, String message, SelectionKey key) {
         JSONObject response = new JSONObject();
+
         response.put("errCode", code);
         response.put("errMsg", message);
-        key.attach(response.length() + response.toString());
+
+        key.attach(response.toString());
     }
 
     /** Allega una stringa in formato JSON che rappresenta un acknowledgement, ovvero una coppia (codice di errore, messaggio)
@@ -29,7 +31,7 @@ public class ComUtility {
         JSONObject response = new JSONObject();
         response.put("errCode", 0);
         response.put("errMsg", "OK");
-        key.attach(response.length() + response.toString());
+        key.attach(response.toString());
     }
 
     /** Invia i dati allegati alla selectionkey passata come paramtetro lungo il canale non bloccante contenuto

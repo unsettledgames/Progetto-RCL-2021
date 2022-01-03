@@ -149,28 +149,28 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
             String line;
 
             while ((line = br.readLine()) != null) {
-                line = line.strip();
+                line = line.trim();
                 if (!line.startsWith("#") && !line.equals("")) {
                     String address;
 
                     if (line.startsWith("SERVER_ADDRESS"))
-                        address = line.split(" ")[1].strip();
+                        address = line.split(" ")[1].trim();
                     else if (line.startsWith("MULTICAST_ADDRESS"))
-                        this.multicastAddress = line.split(" ")[1].strip();
+                        this.multicastAddress = line.split(" ")[1].trim();
                     else if (line.startsWith("UDP_PORT"))
-                        this.udpPort = Integer.parseInt(line.split(" ")[1].strip());
+                        this.udpPort = Integer.parseInt(line.split(" ")[1].trim());
                     else if (line.startsWith("TCP_PORT"))
-                        this.tcpPort = Integer.parseInt(line.split(" ")[1].strip());
+                        this.tcpPort = Integer.parseInt(line.split(" ")[1].trim());
                     else if (line.startsWith("REG_HOST"))
-                        rmiHostName = line.split(" ")[1].strip();
+                        rmiHostName = line.split(" ")[1].trim();
                     else if (line.startsWith("REG_PORT"))
-                        this.rmiPort = Integer.parseInt(line.split(" ")[1].strip());
+                        this.rmiPort = Integer.parseInt(line.split(" ")[1].trim());
                     else if (line.startsWith("REWARD_RATE"))
-                        this.rewardRate = Long.parseLong(line.split(" ")[1].strip());
+                        this.rewardRate = Long.parseLong(line.split(" ")[1].trim());
                     else if (line.startsWith("AUTOSAVE_RATE"))
-                        this.autoSaveRate = Long.parseLong(line.split(" ")[1].strip());
+                        this.autoSaveRate = Long.parseLong(line.split(" ")[1].trim());
                     else if (line.startsWith("REWARD_PERCENTAGE"))
-                        this.authorRewardPercentage = Float.parseFloat(line.split(" ")[1].strip());
+                        this.authorRewardPercentage = Float.parseFloat(line.split(" ")[1].trim());
                     else
                         throw new ConfigException("Parametro inaspettato " + line);
                 }
