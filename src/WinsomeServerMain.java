@@ -80,6 +80,8 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
     // Threads
     // Thread gestore della persistenza
     private ServerPersistence persistenceThread;
+    // Thread del calcolo delle ricompense
+    private ServerRewards rewardsThread;
 
     // Altri parametri
     // Intervallo di tempo che intercorre tra un calcolo delle ricompense e l'altro
@@ -122,8 +124,8 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
      *
      * @param name Nome dell'utente che ha terminato la sessione
      */
-    public void endSession(String name) {
-        activeSessions.remove(name);
+    public SelectionKey endSession(String name) {
+        return activeSessions.remove(name);
     }
 
     /** Elimina la sessione di un certo utente usando la SelectionKey che gli corrisponde
@@ -132,10 +134,12 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
      */
     public void endSession(SelectionKey client) {
         // Cerco la SelectionKey tra i valori della mappa per trovare la chiave ed eliminare l'entry
-        for (String key : activeSessions.keySet()) {
-            if (activeSessions.get(key).equals(client)) {
-                activeSessions.remove(key);
-                return;
+        synchronized (activeSessions) {
+            for (String key : activeSessions.keySet()) {
+                if (activeSessions.get(key).equals(client)) {
+                    activeSessions.remove(key);
+                    return;
+                }
             }
         }
     }
@@ -208,7 +212,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
     /** Apre tutte le connessioni necessarie (multicast per notifiche, tcp per richieste) e avvia i thread di supporto
      *  al server (salvataggio dei dati, calcolo delle ricompense)
      *
-     * @throws IOException In caso di fallimento del Selector o del Socket
+     * @throws IOException In caso di fallimento nella creazione del Selector o del Socket
      */
     public void open() throws IOException {
         // Apertura del socket TCP
@@ -231,11 +235,11 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
         System.out.println("Abilitato salvataggio server");
 
         // Inizia la routine di calcolo delle ricompense
-        Thread sr = new ServerRewards(this, rewardRate, authorRewardPercentage);
-        sr.setDaemon(true);
-        sr.start();
+        rewardsThread = new ServerRewards(this, rewardRate, authorRewardPercentage);
+        rewardsThread.setDaemon(true);
+        rewardsThread.start();
 
-        // Apri connessione multicast per notifica delle ricompense
+        // Apri socket multicast per notifica delle ricompense
         multicastSocket = new DatagramSocket();
 
         // Binding indirizzo e registrazione selector
@@ -259,6 +263,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
                 selector.select();
             } catch (IOException e) {
                 e.printStackTrace();
+                break;
             }
 
             // Ottenimento delle chiavi pronte
@@ -266,6 +271,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
             Iterator<SelectionKey> keyIt = readyKeys.iterator();
 
             while (keyIt.hasNext()) {
+                // Ottieni la chiave corrente e rimuovila dal set di chiavi pronte
                 SelectionKey currKey = keyIt.next();
                 keyIt.remove();
 
@@ -382,8 +388,10 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
 
                     // Salvo lo stato del server
                     persistenceThread.saveServer();
+                    // Termina i thread in esecuzione
+                    persistenceThread.stop();
+                    rewardsThread.stop();
                     System.out.println("Stato del server salvato");
-
                 }
             )
         );
@@ -463,11 +471,13 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
      * @param isNew Indica se il follower è nuovo (cioè nel corso della sessione di following, follower ha iniziato a
      *              seguirlo) oppure se non lo è (cioè questa funzione è stata chiamata per sincronizzare lo stato del
      *              server con quello del client)
-     * @throws RemoteException
+     * @throws RemoteException In caso di fallimento RMI
      */
     public void notifyNewFollower(String follower, String following, boolean isNew) throws RemoteException {
-        if (toNotify.get(following) != null)
-            toNotify.get(following).newFollower(follower, isNew);
+        synchronized (toNotify) {
+            if (toNotify.get(following) != null)
+                toNotify.get(following).newFollower(follower, isNew);
+        }
     }
 
     /** Notifica al client corretto che un utente ha smesso di seguirlo
@@ -477,8 +487,10 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
      * @throws RemoteException In caso di errore RMI
      */
     public void notifyUnfollow(String follower, String following) throws RemoteException {
-        if (toNotify.get(following) != null)
-            toNotify.get(following).unfollowed(follower);
+        synchronized (toNotify) {
+            if (toNotify.get(following) != null)
+                toNotify.get(following).unfollowed(follower);
+        }
     }
 
     /** Notifica a tuti i client iscritti al gruppo di multicast che è stato effettuato il calcolo delle ricompense
@@ -514,7 +526,6 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
     }
 
     // Semplici getters per gli attributi
-    public ConcurrentHashMap<String, SelectionKey> getActiveSessions(){return activeSessions;}
     public ConcurrentHashMap<String, User> getUsers() {return users;}
     public ConcurrentHashMap<String, Vector<String>> getFollowers() {return followers;}
     public ConcurrentHashMap<String, Vector<String>> getFollowing() {return following;}
@@ -543,11 +554,13 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
         long postId = 0;
         this.posts = posts;
 
-        for (Post p : posts.values()) {
-            if (!p.isRewin()) {
-                this.authorPost.computeIfAbsent(p.getAuthor(), k -> new Vector<>());
-                this.authorPost.get(p.getAuthor()).add(p.getId());
-                postId = Math.max(postId, p.getId());
+        synchronized (authorPost) {
+            for (Post p : posts.values()) {
+                if (!p.isRewin()) {
+                    this.authorPost.computeIfAbsent(p.getAuthor(), k -> new Vector<>());
+                    this.authorPost.get(p.getAuthor()).add(p.getId());
+                    postId = Math.max(postId, p.getId());
+                }
             }
         }
 

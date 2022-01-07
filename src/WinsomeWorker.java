@@ -74,7 +74,7 @@ public class WinsomeWorker implements Runnable {
         String user = request.getJson().getString("user");
 
         // Se l'utente è all'interno di una sessione
-        if (server.getActiveSessions().remove(user) != null)
+        if (server.endSession(user) != null)
             ComUtility.attachAck(key);
         else
             ComUtility.attachError(-1, "Utente non loggato", key);

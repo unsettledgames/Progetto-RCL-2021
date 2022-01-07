@@ -66,12 +66,12 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
     private RewardNotifier rewardThread;
     // Indica se le tabelle di output possono essere codificate in Unicode o meno
     private boolean tableUnicode;
+    // Socket timeout
+    private long socketTimeout;
 
     /** Costruttore del Client: inizializza la lista dei followers, crea lo stub del client per la notifica dei follower
      *  e cerca lo stub del server per la procedura di registrazione.
      *
-     * @throws RemoteException In caso di fallimento nella creazione dell'oggetto RMI
-     * @throws NotBoundException In caso di fallimento nella ricerca dello stub di registrazione del server
      */
     public WinsomeClientMain() {
         super();
@@ -115,6 +115,7 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
         SocketAddress address = new InetSocketAddress(this.serverName, this.serverPort);
         // Apertura della connessione
         socket = SocketChannel.open(address);
+        socket.socket().setSoTimeout((int)socketTimeout);
 
         // Resta in attesa finché la connessione non è pronta (impedisce l'invio di richieste prima che la connessione
         // sia stata stabilita)
@@ -154,6 +155,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                         this.registryPort = Integer.parseInt(line.split(" ")[1].trim());
                     else if (line.startsWith("USE_UNICODE"))
                         this.tableUnicode = Boolean.parseBoolean(line.split(" ")[1].trim());
+                    else if (line.startsWith("SOCKET_TIMEOUT"))
+                        this.socketTimeout = Long.parseLong(line.split(" ")[1].trim());
                     else
                         throw new ConfigException("Parametro inaspettato " + line);
 
@@ -1027,7 +1030,7 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
             WinsomeClientMain client = new WinsomeClientMain();
 
             try {
-                client.config(args[0], 5);
+                client.config(args[0], 6);
             }
             catch (ConfigException e) {
                 e.printErr();
@@ -1106,10 +1109,11 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
         }
         catch (IOException e) {
             System.err.println("Errore fatale di I/O, chiusura del client");
+            e.printStackTrace();
         } catch (NotBoundException e) {
             System.err.println("Impossibile trovare lo stub remoto del server");
+            e.printStackTrace();
         }
-        // TODO: unbind register etc
 
         System.exit(0);
     }

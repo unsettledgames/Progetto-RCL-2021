@@ -45,7 +45,7 @@ public class RewardNotifier extends Thread{
     public void close() {
         try {
             this.mcSocket.leaveGroup(address);
-            this.stop();
+            this.interrupt();
         } catch (IOException e) {
             System.err.println("Impossibile abbandonare il gruppo di multicast");
             e.printStackTrace();

@@ -10,3 +10,5 @@ REG_PORT: 6667
 
 # Stampa dei dati
 USE_UNICODE: true
+# Timeout del socket in millisecondi
+SOCKET_TIMEOUT: 2000
