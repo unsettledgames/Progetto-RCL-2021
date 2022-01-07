@@ -29,6 +29,18 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
     // Host name dell'RMI
     private String rmiHostName;
 
+    // Parametri del threadpool
+    // Core threads
+    private int nCoreThreads;
+    // Massimo numero di thread
+    private int maxThreads;
+    // Keepalive per ogni thread
+    private long threadKeepAlive;
+    // Rejection policy: numero tentativi
+    private int rejectionAttempts;
+    // Rejection policy: attesa tra un tentativo e l'altro
+    private long rejectionWait;
+
     // Infrastruttura del server
     // Selector usato per il channel multiplexing
     private Selector selector;
@@ -37,7 +49,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
     // Socket udp multicast del server
     private DatagramSocket multicastSocket;
     // ThreadPool che si occupa di gestire le richieste provenienti dai client
-    private final ExecutorService threadPool;
+    private ExecutorService threadPool;
     // Lista di stub di client da notificare riguardo nuovi follower o unfollowing
     private final ConcurrentHashMap<String, IRemoteClient> toNotify;
 
@@ -94,9 +106,6 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
         votes = new ConcurrentHashMap<>();
         comments = new ConcurrentHashMap<>();
         rewins = new ConcurrentHashMap<>();
-
-        threadPool = new ThreadPoolExecutor(5, 20, 1000,
-                TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), new RepeatPolicy(5, 2));
     }
 
     /** Aggiunge alla lista delle sessioni la SelectionKey specificata come parametro, assegandola allo username
@@ -144,18 +153,15 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
      *
      * @param configFile File contenente le opzioni di configurazione del server
      */
-    public void config(String configFile) {
+    public void config(String configFile, int nExpected) {
         try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
             String line;
+            int read = 0;
 
             while ((line = br.readLine()) != null) {
                 line = line.trim();
                 if (!line.startsWith("#") && !line.equals("")) {
-                    String address;
-
-                    if (line.startsWith("SERVER_ADDRESS"))
-                        address = line.split(" ")[1].trim();
-                    else if (line.startsWith("MULTICAST_ADDRESS"))
+                    if (line.startsWith("MULTICAST_ADDRESS"))
                         this.multicastAddress = line.split(" ")[1].trim();
                     else if (line.startsWith("UDP_PORT"))
                         this.udpPort = Integer.parseInt(line.split(" ")[1].trim());
@@ -171,9 +177,25 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
                         this.autoSaveRate = Long.parseLong(line.split(" ")[1].trim());
                     else if (line.startsWith("REWARD_PERCENTAGE"))
                         this.authorRewardPercentage = Float.parseFloat(line.split(" ")[1].trim());
+                    else if (line.startsWith("THREAD_POOL_CORE"))
+                        this.nCoreThreads = Integer.parseInt(line.split(" ")[1].trim());
+                    else if (line.startsWith("THREAD_POOL_MAX"))
+                        this.maxThreads = Integer.parseInt(line.split(" ")[1].trim());
+                    else if (line.startsWith("THREAD_POOL_KEEPALIVE_MS"))
+                        this.threadKeepAlive = Integer.parseInt(line.split(" ")[1].trim());
+                    else if (line.startsWith("REPEAT_POLICY_TIMES"))
+                        this.rejectionAttempts = Integer.parseInt(line.split(" ")[1].trim());
+                    else if (line.startsWith("REPEAT_POLICY_WAIT_MS"))
+                        this.rejectionWait = Long.parseLong(line.split(" ")[1].trim());
                     else
                         throw new ConfigException("Parametro inaspettato " + line);
+
+                    read++;
                 }
+            }
+
+            if (read < nExpected) {
+                throw new ConfigException("Parametri di configurazione non sufficienti");
             }
             System.out.println("Configurazione server avvenuta con successo");
         } catch (FileNotFoundException e) {
@@ -193,6 +215,10 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
         InetSocketAddress address = new InetSocketAddress(tcpPort);
         selector = Selector.open();
         serverSocket = ServerSocketChannel.open();
+
+        // Inizializzazione del threadpool
+        threadPool = new ThreadPoolExecutor(nCoreThreads, maxThreads, threadKeepAlive,
+                TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), new RepeatPolicy(rejectionAttempts, rejectionWait));
 
         // Carica il server con i dati salvati in precedenza se ce ne sono
         ServerPersistence.loadServer("data.json", this);
@@ -538,7 +564,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
 
         // Configuralo e aprilo secondo i parametri del file
         try {
-            server.config(args[0]);
+            server.config(args[0], 13);
             server.open();
             server.enableRMI();
             server.configShutdown();
@@ -549,6 +575,10 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
         }
         catch (IOException e) {
             System.err.println("Errore fatale di inizializzazione, impossibile eseguire il server");
+        }
+        catch (ConfigException e) {
+            e.printErr();
+            return;
         }
     }
 }

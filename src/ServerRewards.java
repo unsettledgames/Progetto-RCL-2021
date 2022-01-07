@@ -82,6 +82,8 @@ public class ServerRewards extends Thread{
 
                     // Ottengo l'id del post
                     Post p = server.getPosts().get(postId);
+                    // Aumento il numero di volte che quel post ha subito il calcolo
+                    p.increaseRewardAmount();
 
                     // Calcolo i nuovi voti (cioè i voti aggiunti dopo l'ultimo calcolo delle ricompense
                     if (server.getVotes().get(postId) != null) {
@@ -126,7 +128,6 @@ public class ServerRewards extends Thread{
 
                     // Calcolo della ricompensa
                     double reward = (Math.log(Math.max(postRating, 0) + 1) + Math.log(commentPart + 1)) / p.getRewardAmount();
-                    p.increaseRewardAmount();
 
                     // Se la ricompensa è significativa, distribuiscila tra curatori e autore
                     if (reward > 0) {

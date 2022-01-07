@@ -1,10 +1,9 @@
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import exceptions.ConfigException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.*;
 import java.nio.channels.*;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +18,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.DecimalFormat;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.min;
 
@@ -36,10 +36,21 @@ import static java.lang.Math.min;
  */
 class WinsomeClientMain extends RemoteObject implements IRemoteClient {
     // Dati di connessione
+    // Nome host del server
+    private String serverName;
+    // Porta del server
+    private int serverPort;
+
+    // Dati RMI
+    // Nome registro
+    private String registryName;
+    // Porta registro
+    private int registryPort;
+
     // Stub del server usato per registrare nuovi utenti
-    private final IRemoteServer signupObject;
+    private IRemoteServer signupObject;
     // Stub del client usato dal server per essere notificato di nuovi follower
-    private final IRemoteClient clientStub;
+    private IRemoteClient clientStub;
     // Socket con cui si comunica con il server
     private SocketChannel socket;
 
@@ -53,6 +64,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
     // Altri attributi
     // Thread che si occupa di visualizzare le notifiche di calcolo delle ricompense
     private RewardNotifier rewardThread;
+    // Indica se le tabelle di output possono essere codificate in Unicode o meno
+    private boolean tableUnicode;
 
     /** Costruttore del Client: inizializza la lista dei followers, crea lo stub del client per la notifica dei follower
      *  e cerca lo stub del server per la procedura di registrazione.
@@ -60,14 +73,9 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
      * @throws RemoteException In caso di fallimento nella creazione dell'oggetto RMI
      * @throws NotBoundException In caso di fallimento nella ricerca dello stub di registrazione del server
      */
-    public WinsomeClientMain() throws RemoteException, NotBoundException {
+    public WinsomeClientMain() {
         super();
-        Registry r = LocateRegistry.getRegistry(6667);
-        Remote ro = r.lookup("WINSOME_SERVER");
-        // Esportazione del client per la ricezione delle notifiche
-        clientStub = (IRemoteClient) UnicastRemoteObject.exportObject(this, 0);
 
-        signupObject = (IRemoteServer) ro;
         followers = new ArrayList<>();
     }
 
@@ -104,13 +112,64 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
      */
     public void connect() throws IOException {
         // Creazione dell'indirizzo
-        SocketAddress address = new InetSocketAddress("localhost", 6666);
+        SocketAddress address = new InetSocketAddress(this.serverName, this.serverPort);
         // Apertura della connessione
         socket = SocketChannel.open(address);
 
         // Resta in attesa finché la connessione non è pronta (impedisce l'invio di richieste prima che la connessione
         // sia stata stabilita)
         while (!socket.finishConnect()) {}
+    }
+
+
+    public void enableRMI() throws RemoteException, NotBoundException {
+        Registry r = LocateRegistry.getRegistry(this.registryPort);
+        Remote ro = r.lookup(this.registryName);
+        // Esportazione del client per la ricezione delle notifiche
+        clientStub = (IRemoteClient) UnicastRemoteObject.exportObject(this, 0);
+        signupObject = (IRemoteServer) ro;
+    }
+
+
+    /** Configura il client usando i parametri contenuti nel file passato come argomento
+     *
+     * @param file Il path del file di configurazione
+     * @throws IOException In caso di errore nella lettura del file
+     */
+    public void config(String file, int nExpected) throws IOException {
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            int read = 0;
+
+            while ((line = br.readLine()) != null) {
+                line = line.trim();
+                if (!line.startsWith("#") && !line.equals("")) {
+                    if (line.startsWith("SERVER_ADDRESS"))
+                        this.serverName = line.split(" ")[1].trim();
+                    else if (line.startsWith("SERVER_PORT"))
+                        this.serverPort = Integer.parseInt(line.split(" ")[1].trim());
+                    else if (line.startsWith("REG_HOST"))
+                        this.registryName = line.split(" ")[1].trim();
+                    else if (line.startsWith("REG_PORT"))
+                        this.registryPort = Integer.parseInt(line.split(" ")[1].trim());
+                    else if (line.startsWith("USE_UNICODE"))
+                        this.tableUnicode = Boolean.parseBoolean(line.split(" ")[1].trim());
+                    else
+                        throw new ConfigException("Parametro inaspettato " + line);
+
+                    read++;
+                }
+            }
+
+            if (read < nExpected) {
+                throw new ConfigException("Troppi pochi parametri di configurazione");
+            }
+            System.out.println("Configurazione client avvenuta con successo");
+        } catch (FileNotFoundException e) {
+            throw new ConfigException("Nome del file errato");
+        } catch (IOException e) {
+            throw new ConfigException("Errore di lettura del file");
+        }
     }
 
 
@@ -148,7 +207,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                     JSONObject reply = new JSONObject(signupObject.signup(args[1], password, tags));
                     // Creo una tabella di riepilogo della registrazione
                     TableList summary = new TableList(3, "Username", "Password", "Tags").addRow(args[1],
-                            asteriks, Arrays.toString(tags)).withUnicode(true);
+                            asteriks, Arrays.toString(tags));
+                    summary.withUnicode(tableUnicode);
                     // Gestisco l'errore stampando la tabella in caso di successo, il messaggio di errore in caso contrario.
                     ClientError.handleError("Registrazione avvenuta con successo. Riepilogo:",
                             summary, reply.getInt("errCode"), reply.getString("errMsg"));
@@ -205,7 +265,7 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
 
                     try {
                         // Registrazine alla callback del server per i nuovi following
-                        IRemoteServer serverStub = (IRemoteServer) LocateRegistry.getRegistry(6667).lookup("WINSOME_SERVER");
+                        IRemoteServer serverStub = (IRemoteServer) LocateRegistry.getRegistry(registryPort).lookup(registryName);
                         serverStub.registerNotifications(currUsername, clientStub);
                     }
                     catch (NotBoundException e) {
@@ -255,7 +315,7 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                 // In caso di successo, tento di annullare l'iscrizione del client al servizio di notifica
                 if (reply.getInt("errCode") == 0) {
                     try {
-                        ((IRemoteServer) LocateRegistry.getRegistry(6667).lookup("WINSOME_SERVER")).unregisterNotifications(currUsername);
+                        ((IRemoteServer) LocateRegistry.getRegistry(registryPort).lookup(registryName)).unregisterNotifications(currUsername);
                         // Annullo l'iscrizione al servizio di notifica del calcolo delle ricompense
                         rewardThread.close();
                         rewardThread = null;
@@ -321,7 +381,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                             HashMap<String, String[]> names = new Gson().fromJson(reply.getString("items"),
                                     new TypeToken<HashMap<String, String[]>>() {
                                     }.getType());
-                            output = new TableList("Utente", "Interessi in comune").withUnicode(true);
+                            output = new TableList("Utente", "Interessi in comune");
+                            output.withUnicode(tableUnicode);
 
                             for (String name : names.keySet())
                                 output.addRow(name, Arrays.toString(names.get(name)));
@@ -334,7 +395,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                 break;
                 case "followers": {
                     // Nel caso dei follower, basta stampare gli oggetti contenuti nella lista di followers
-                    output = new TableList("Nome utente").withUnicode(true);
+                    output = new TableList("Nome utente");
+                    output.withUnicode(tableUnicode);
                     for (String follower : followers)
                         output.addRow(follower);
                     output.print();
@@ -353,7 +415,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                             List<String> names = new Gson().fromJson(reply.getString("items"),
                                     new TypeToken<List<String>>() {
                                     }.getType());
-                            output = new TableList("Nome utente").withUnicode(true);
+                            output = new TableList("Nome utente");
+                            output.withUnicode(tableUnicode);
 
                             for (String name : names)
                                 output.addRow(name);
@@ -488,8 +551,12 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                 ComUtility.sendSync(req.toString(), socket);
                 JSONObject reply = new JSONObject(ComUtility.receive(socket));
 
-                ClientError.handleError("Post creato con successo.", new TableList("Titolo", "Contenuto")
-                        .withUnicode(true).addRow(args[0], args[1]), reply.getInt("errCode"), reply.getString("errMsg"));
+                TableList output = new TableList("Titolo", "Contenuto")
+                        .withUnicode(true).addRow(args[0], args[1]);
+                output.withUnicode(tableUnicode);
+
+                ClientError.handleError("Post creato con successo.", output,
+                        reply.getInt("errCode"), reply.getString("errMsg"));
             }
             catch (IOException e) {
                 System.err.println("Errore di comunicazione tra client e server");
@@ -510,7 +577,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
             return;
         }
         // Preparazione della tabella di risultati
-        TableList out = new TableList("Id post", "Titolo", "Autore", "Rewinner").withUnicode(true);
+        TableList out = new TableList("Id post", "Titolo", "Autore", "Rewinner");
+        out.withUnicode(tableUnicode);
         JSONObject req = new JSONObject();
 
         // Preparazione della richiesta
@@ -546,7 +614,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
         }
 
         // Preparazione della tabella dei risultati
-        TableList out = new TableList("Id post", "Titolo", "Autore", "Rewinner").withUnicode(true);
+        TableList out = new TableList("Id post", "Titolo", "Autore", "Rewinner");
+        out.withUnicode(tableUnicode);
         JSONObject req = new JSONObject();
 
         // Preparazione della richiesta
@@ -670,6 +739,7 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
             // Preparazione della richiesta
             JSONObject req = new JSONObject();
             TableList out = new TableList("Id post", "Titolo", "Contenuto", "Upvotes", "Downvotes").withUnicode(true);
+            out.withUnicode(tableUnicode);
             req.put("op", OpCodes.SHOW_POST);
             req.put("user", currUsername);
             req.put("post", Long.parseLong(args[2]));
@@ -695,7 +765,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                     // Se ci sono dei commenti, stampali
                     if (comments != null) {
                         System.out.println("Commenti: ");
-                        TableList commentTable = new TableList("Autore", "Commento").withUnicode(true);
+                        TableList commentTable = new TableList("Autore", "Commento");
+                        commentTable.withUnicode(tableUnicode);
 
                         for (Comment c : comments)
                             commentTable.addRow(c.getUser(), c.getContent());
@@ -811,7 +882,8 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                 if (ClientError.handleError("", reply.getInt("errCode"),
                         reply.getString("errMsg")) == 0) {
                     // Se non si sono verificati errori, estraggo lo storico delle transazioni
-                    TableList transactionOut = new TableList("Data", "Importo", "Causale").withUnicode(true);
+                    TableList transactionOut = new TableList("Data", "Importo", "Causale");
+                    transactionOut.withUnicode(tableUnicode);
                     List<Transaction> transactions = new Gson().fromJson(reply.getString("transactions"),
                             new TypeToken<List<Transaction>>() {
                             }.getType());
@@ -853,6 +925,41 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
         else {
             System.err.println("Errore di visualizzazione del portafoglio: valuta di conversione non supportata");
         }
+    }
+
+
+    public void configShutdown() {
+        Runtime.getRuntime().addShutdownHook(
+            new Thread(
+                () -> {
+                    System.out.println("Chiusura del client avviata");
+
+                    // Mi disiscrivo da notifiche e calcolo ricompense
+                    IRemoteServer serverStub = null;
+                    try {
+                        if (currUsername != null) {
+                            serverStub = (IRemoteServer) LocateRegistry.getRegistry(6667).lookup("WINSOME_SERVER");
+                            serverStub.unregisterNotifications(currUsername);
+                        }
+                    } catch (RemoteException e) {
+                        System.err.println("Errore di comunicazione remota");
+                    } catch (NotBoundException e) {
+                        System.err.println("Impossibile reperire l'oggetto remoto");
+                    }
+
+                    // Interrompo il thread che notifica il calcolo delle ricompense
+                    if (rewardThread != null && rewardThread.isAlive()) {
+                        rewardThread.close();
+                    }
+
+                    // Chiudo la connessione
+                    if (socket != null && socket.isConnected())
+                        closeConnection();
+
+                    System.out.println("Client chiuso");
+                }
+            )
+        );
     }
 
 
@@ -910,10 +1017,25 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
     }
 
     public static void main(String[] args) {
+        if (args.length < 1) {
+            new ConfigException("File non indicato").printErr();
+            return;
+        }
+
         try {
             // Crea il client e connettilo al server
             WinsomeClientMain client = new WinsomeClientMain();
+
+            try {
+                client.config(args[0], 5);
+            }
+            catch (ConfigException e) {
+                e.printErr();
+                return;
+            }
             client.connect();
+            client.enableRMI();
+            client.configShutdown();
             // Lettore dei comandi dell'utente
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             // Ultimo comando inserito dall'utente

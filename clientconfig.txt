@@ -1,0 +1,12 @@
+# Indirizzo del server
+SERVER_ADDRESS: 127.0.0.1
+# Porta del server
+SERVER_PORT: 6666
+
+# Host del registry RMI
+REG_HOST: WINSOME_SERVER
+# Porta del registry RMI
+REG_PORT: 6667
+
+# Stampa dei dati
+USE_UNICODE: true

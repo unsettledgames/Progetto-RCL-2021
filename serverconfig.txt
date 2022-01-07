@@ -1,5 +1,12 @@
-# Indirizzo del server
-SERVER_ADDRESS: 127.0.0.1
+# Parametri del threadpool
+THREAD_POOL_CORE: 5
+THREAD_POOL_MAX: 20
+THREAD_POOL_KEEPALIVE_MS: 1000
+
+# Rejection policy del threadpool
+REPEAT_POLICY_TIMES: 5
+REPEAT_POLICY_WAIT_MS: 10
+
 # Indirizzo multicast del server
 MULTICAST_ADDRESS: 224.0.3.0
 
