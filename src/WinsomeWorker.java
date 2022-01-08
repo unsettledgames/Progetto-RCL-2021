@@ -295,6 +295,15 @@ public class WinsomeWorker implements Runnable {
         for (Long p : userBlog)
             ret.add(server.getPosts().get(p));
 
+        // Aggiungo eventuali rewin
+        for (Vector<Long> rewins : server.getRewins().values()) {
+            for (Long l : rewins) {
+                if (server.getPosts().get(l).getRewinner().equals(user)) {
+                    ret.add(server.getPosts().get(l));
+                }
+            }
+        }
+
         // Ordino la lista dei post per data decrescente
         Collections.sort(ret);
 
@@ -396,18 +405,24 @@ public class WinsomeWorker implements Runnable {
         ConcurrentHashMap<Long, Vector<Comment>> comments = server.getComments();
         Vector<Post> userFeed = getFeed(user);
 
-        synchronized (posts) {
-            if (posts != null && posts.get(user).contains(post)) {
-                ComUtility.attachError(-1, "Errore nell'aggiunta del commento: non puoi commentare i tuoi " +
-                        "stessi post", key);
-                return;
+        if (posts != null) {
+            synchronized (posts) {
+                if (posts.get(user) != null && posts.get(user).contains(post)) {
+                    ComUtility.attachError(-1, "Errore nell'aggiunta del commento: non puoi commentare i tuoi " +
+                            "stessi post", key);
+                    return;
+                }
+                if (!userFeed.contains(server.getPosts().get(post))) {
+                    ComUtility.attachError(-2, "Errore nell'aggiunta del commento: impossibile commentare un" +
+                            " post non presente all'interno del feed", key);
+                    return;
+                }
+                post = getOriginalPost(post);
             }
-            if (!userFeed.contains(server.getPosts().get(post))) {
-                ComUtility.attachError(-2, "Errore nell'aggiunta del commento: impossibile commentare un" +
-                        " post non presente all'interno del feed", key);
-                return;
-            }
-            post = getOriginalPost(post);
+        }
+        else {
+            ComUtility.attachError(-3, "Errore nell'aggiunta del commento: non ci sono post nel server", key);
+            return;
         }
 
         synchronized (comments) {
@@ -648,8 +663,8 @@ public class WinsomeWorker implements Runnable {
 
         if (following != null) {
             for (Post p : server.getPosts().values()) {
-                // Includo i rewin
-                if (following.contains(p.getAuthor()) || following.contains(p.getRewinner())) {
+                // Includo i rewin, ma non quelli che ha fatto l'utente che richiede il feed
+                if ((following.contains(p.getAuthor()) || following.contains(p.getRewinner())) && !p.getRewinner().equals(user)) {
                     ret.add(p);
                 }
             }

@@ -12,13 +12,11 @@ import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.rmi.server.RemoteObject;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.DecimalFormat;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.min;
 
@@ -34,7 +32,7 @@ import static java.lang.Math.min;
  *  non esaudibile, caricherebbe il server di inutile lavoro.
  *
  */
-class WinsomeClientMain extends RemoteObject implements IRemoteClient {
+class WinsomeClientMain implements IRemoteClient {
     // Dati di connessione
     // Nome host del server
     private String serverName;
@@ -1085,7 +1083,7 @@ class WinsomeClientMain extends RemoteObject implements IRemoteClient {
                         client.comment(currCommand);
                         break;
                     case "show":
-                        if (currCommand.split(" ")[1].equals("post"))
+                        if (currCommand.split(" ").length > 1 && currCommand.split(" ")[1].equals("post"))
                             client.showPost(currCommand);
                         break;
                     case "delete":

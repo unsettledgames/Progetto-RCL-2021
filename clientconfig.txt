@@ -9,6 +9,6 @@ REG_HOST: WINSOME_SERVER
 REG_PORT: 6667
 
 # Stampa dei dati
-USE_UNICODE: true
+USE_UNICODE: false
 # Timeout del socket in millisecondi
 SOCKET_TIMEOUT: 2000

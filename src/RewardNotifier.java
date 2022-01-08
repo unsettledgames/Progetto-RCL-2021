@@ -34,7 +34,7 @@ public class RewardNotifier extends Thread{
                     sb.append((char)packet.getData()[i]);
                     i++;
                 }
-                System.out.println(new String(sb.toString()));
+                System.out.println(sb.toString());
 
             } catch (IOException e) {
                 System.err.println("Errore di ricezione della notifica di calcolo della ricompensa");

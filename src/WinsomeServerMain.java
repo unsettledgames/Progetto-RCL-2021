@@ -260,7 +260,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
         while (!Thread.currentThread().isInterrupted()) {
             // Select
             try {
-                selector.select();
+                selector.select(100);
             } catch (IOException e) {
                 e.printStackTrace();
                 break;
@@ -348,9 +348,9 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
                     // Tento di finire i task correnti
                     threadPool.shutdown();
 
-                    // Se non ci sono riuscito in un minuto, chiudo comunque
+                    // Se non ci sono riuscito in 10 secondi, chiudo comunque
                     try {
-                        if (!threadPool.awaitTermination(60, TimeUnit.SECONDS)) {
+                        if (!threadPool.awaitTermination(10, TimeUnit.SECONDS)) {
                             threadPool.shutdownNow();
                         }
                     }
@@ -362,7 +362,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
                     // Invio eventuali risposte e chiudo le connessioni
                     // Select
                     try {
-                        selector.select();
+                        selector.select(100);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -377,11 +377,14 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
 
                         if (currKey.isWritable() && currKey.isValid() && currKey.attachment() != null) {
                             try {
+                                System.out.println("Send async");
                                 ComUtility.sendAsync(currKey);
+                                System.out.println("Sent");
                             } catch (IOException e) {
                                 e.printStackTrace();
                             }
                             currKey.cancel();
+                            System.out.println("Canceled");
                         }
                     }
                     System.out.println("Connessioni chiuse");
@@ -588,6 +591,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
         }
         catch (IOException e) {
             System.err.println("Errore fatale di inizializzazione, impossibile eseguire il server");
+            e.printStackTrace();
         }
         catch (ConfigException e) {
             e.printErr();
