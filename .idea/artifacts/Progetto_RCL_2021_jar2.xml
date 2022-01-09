@@ -1,0 +1,10 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="Progetto-RCL-2021:jar2">
+    <output-path>$PROJECT_DIR$/out/artifacts/Progetto_RCL_2021_jar2</output-path>
+    <root id="archive" name="Progetto-RCL-2021.jar">
+      <element id="module-output" name="Progetto-RCL-2021" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/src/gson-2.8.9.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/src/json-java.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>
