@@ -2,6 +2,7 @@
 THREAD_POOL_CORE: 5
 THREAD_POOL_MAX: 20
 THREAD_POOL_KEEPALIVE_MS: 1000
+THREAD_QUEUE_SIZE: 100
 
 # Rejection policy del threadpool
 REPEAT_POLICY_TIMES: 5
@@ -20,7 +21,7 @@ REG_HOST: WINSOME_SERVER
 REG_PORT: 6667
 
 # Intervallo di calcolo delle ricompense in millisecondi
-REWARD_RATE: 20000
+REWARD_RATE: 60000
 # Percentuale delle ricompense assegnate all'autore: il resto viene suddiviso tra i curatori
 REWARD_PERCENTAGE: 50
 

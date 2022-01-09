@@ -36,6 +36,8 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
     private int maxThreads;
     // Keepalive per ogni thread
     private long threadKeepAlive;
+    // Dimensione della coda delle richieste
+    private int queueSize;
     // Rejection policy: numero tentativi
     private int rejectionAttempts;
     // Rejection policy: attesa tra un tentativo e l'altro
@@ -191,6 +193,8 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
                         this.rejectionAttempts = Integer.parseInt(line.split(" ")[1].trim());
                     else if (line.startsWith("REPEAT_POLICY_WAIT_MS"))
                         this.rejectionWait = Long.parseLong(line.split(" ")[1].trim());
+                    else if (line.startsWith("THREAD_QUEUE_SIZE"))
+                        this.queueSize = Integer.parseInt(line.split(" ")[1].trim());
                     else
                         throw new ConfigException("Parametro inaspettato " + line);
 
@@ -222,7 +226,8 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
 
         // Inizializzazione del threadpool
         threadPool = new ThreadPoolExecutor(nCoreThreads, maxThreads, threadKeepAlive,
-                TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), new RepeatPolicy(rejectionAttempts, rejectionWait));
+                TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(queueSize),
+                new RepeatPolicy(rejectionAttempts, rejectionWait));
 
         // Carica il server con i dati salvati in precedenza se ce ne sono
         ServerPersistence.loadServer("data.json", this);
@@ -562,8 +567,8 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
                 if (!p.isRewin()) {
                     this.authorPost.computeIfAbsent(p.getAuthor(), k -> new Vector<>());
                     this.authorPost.get(p.getAuthor()).add(p.getId());
-                    postId = Math.max(postId, p.getId());
                 }
+                postId = Math.max(postId, p.getId());
             }
         }
 
@@ -580,7 +585,7 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
 
         // Configuralo e aprilo secondo i parametri del file
         try {
-            server.config(args[0], 13);
+            server.config(args[0], 14);
             server.open();
             server.enableRMI();
             server.configShutdown();
@@ -595,7 +600,6 @@ class WinsomeServerMain implements Runnable, IRemoteServer {
         }
         catch (ConfigException e) {
             e.printErr();
-            return;
         }
     }
 }

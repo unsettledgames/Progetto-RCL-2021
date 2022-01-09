@@ -57,7 +57,7 @@ class WinsomeClientMain implements IRemoteClient {
     private String currUsername;
     // Lista contenente i followers correnti del client. Viene assegnata per la prima volta dal server al momento del login
     // e viene poi aggiornata tramite RMI callback da parte del server
-    private final List<String> followers;
+    private List<String> followers;
 
     // Altri attributi
     // Thread che si occupa di visualizzare le notifiche di calcolo delle ricompense
@@ -86,7 +86,8 @@ class WinsomeClientMain implements IRemoteClient {
      */
     public void newFollower(String follower, boolean isNew) throws RemoteException {
         // Aggiungo il nuovo follower alla lista
-        followers.add(follower);
+        if (!followers.contains(follower))
+            followers.add(follower);
 
         // Se il follower è effettivamente nuovo, stampo una breve notifica
         if (isNew)
@@ -121,6 +122,11 @@ class WinsomeClientMain implements IRemoteClient {
     }
 
 
+    /** Abilita lo stub RMI del client
+     *
+     * @throws RemoteException In caso di fallimento remoto
+     * @throws NotBoundException In caso non sia possibile localizzare il registry
+     */
     public void enableRMI() throws RemoteException, NotBoundException {
         Registry r = LocateRegistry.getRegistry(this.registryPort);
         Remote ro = r.lookup(this.registryName);
@@ -174,9 +180,7 @@ class WinsomeClientMain implements IRemoteClient {
     }
 
 
-    /** Implementa la registrazione di un utente. Non viene portata a termine se:
-     *  - Mancano dei parametri di registrazione
-     *  - I tag sono più di 5
+    /** Implementa la registrazione di un utente.
      *
      * @param comm I parametri di registrazione
      */
@@ -326,6 +330,8 @@ class WinsomeClientMain implements IRemoteClient {
                     }
                     // Non c'è più nessun utente loggato su questo client
                     currUsername = null;
+                    // Resetta i followers
+                    this.followers = new ArrayList<>();
                 }
             }
             catch (IOException e) {

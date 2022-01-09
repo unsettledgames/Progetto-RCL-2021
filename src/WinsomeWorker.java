@@ -345,16 +345,16 @@ public class WinsomeWorker implements Runnable {
         ConcurrentHashMap<Long, Post> posts = server.getPosts();
 
         synchronized (posts) {
-            // Se è un rewin, allora ottengo il post originale
-            if (posts.get(post).isRewin())
-                post = getOriginalPost(post);
-
             // Controllo che l'utente possa visualizzare il post che desidera votare nel proprio feed
-            if (!getFeed(author).contains(posts.get(originalPost))) {
+            if (!getFeed(author).contains(posts.get(originalPost)) && !posts.get(post).getRewinner().equals(author)) {
                 ComUtility.attachError(-2, "Errore di votazione: non puoi votare un post che non fa " +
                         "parte del tuo feed", key);
                 return;
             }
+
+            // Se è un rewin, allora ottengo il post originale
+            if (posts.get(post).isRewin())
+                post = getOriginalPost(post);
 
             // Evito che un utente si autovaluti
             if (posts.get(post).getAuthor().equals(author)) {
@@ -412,11 +412,15 @@ public class WinsomeWorker implements Runnable {
                             "stessi post", key);
                     return;
                 }
-                if (!userFeed.contains(server.getPosts().get(post))) {
-                    ComUtility.attachError(-2, "Errore nell'aggiunta del commento: impossibile commentare un" +
-                            " post non presente all'interno del feed", key);
-                    return;
+                ConcurrentHashMap<Long, Post> idPost = server.getPosts();
+                synchronized (idPost) {
+                    if (!userFeed.contains(idPost.get(post)) && !idPost.get(post).getRewinner().equals(user)) {
+                        ComUtility.attachError(-2, "Errore nell'aggiunta del commento: impossibile commentare un" +
+                                " post non presente all'interno del feed", key);
+                        return;
+                    }
                 }
+
                 post = getOriginalPost(post);
             }
         }
@@ -456,7 +460,7 @@ public class WinsomeWorker implements Runnable {
             Post toShow = posts.get(post);
 
             // Se il post esiste e (il post è nel feed o nel blog dell'utente)
-            if (toShow != null && (feed.contains(toShow) || toShow.getAuthor().equals(user))) {
+            if (toShow != null && (feed.contains(toShow) || toShow.getAuthor().equals(user) || toShow.getRewinner().equals(user))) {
                 // Tengo traccia dei voti
                 int nNegative = 0;
                 int nPositive = 0;
@@ -579,7 +583,7 @@ public class WinsomeWorker implements Runnable {
                 // rewinnare il post originale)
                 Post toAdd = new Post(server.getPosts().get(getOriginalPost(post)), user);
                 server.getRewins().computeIfAbsent(post, k -> new Vector<>());
-                server.getRewins().get(post).add(toAdd.getId());
+                server.getRewins().get(getOriginalPost(post)).add(toAdd.getId());
                 server.getPosts().put(toAdd.getId(), toAdd);
             }
         }
