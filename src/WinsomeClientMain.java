@@ -1101,6 +1101,42 @@ class WinsomeClientMain implements IRemoteClient {
                     case "wallet":
                         client.wallet(currCommand);
                         break;
+                    case "help":
+                        System.out.println("ISTRUZIONI DI ESECUZIONE DEL CLIENT\n\n" +
+                                "help -> stampa questo messaggio.\n\n" +
+                                "quit -> chiude il client ed eventualmente la connessione con il server.\n\n" +
+                                "register <user> <password> <tag1> [<tag2>][<tag3>][<tag4>][<tag5>] ->" +
+                                "registra un utente con il nome 'user', password 'password' e lista di tag <tagn>. Il" +
+                                " primo tag è obbligatorio, gli altri sono opzionali.\n\n" +
+                                "login <user> <password> -> effettua il login dell'utente 'user' con la password 'password'.\n\n" +
+                                "logout -> effettua il logout dell'utente corrente.\n\n" +
+                                "list users -> mostra la lista degli utenti che condividono almeno un tag con l'utente " +
+                                "loggato al momento.\n\n" +
+                                "list following -> mostra la lista degli utenti seguiti dall'utente loggato al momento.\n\n" +
+                                "list following -> mostra la lista dei followers dell'utente loggato al momento.\n\n" +
+                                "follow <user> -> permette all'utente correntemente loggato di seguire l'utente 'user'," +
+                                "ricevendone gli aggiornamenti sul feed.\n\n" +
+                                "unfollow <user> -> permette all'utente correntemente loggato di smettere di seguire l'utente" +
+                                " 'user', cessando di riceverne gli aggiornamenti sul feed.\n\n" +
+                                "post \"<titolo>\" \"<contenuto>\" -> crea un post avente come autore l'utente loggato al momento." +
+                                " Titolo e contenuto devono essere racchiusi tra doppi apici.\n\n" +
+                                "blog -> visualizza il blog dell'utente loggato, ovvero la lista di post da esso creati o rewinnati\n\n" +
+                                "feed -> visualizza il feed dell'utente loggato, cioè la lista dei post creati o rewinnati dagli utenti seguiti.\n\n" +
+                                "rate <postId> <val> -> consente di valutare un post presente nel feed dell'utente loggato" +
+                                " al momento. 'postId' e' l'identificativo del post, mentre 'val' e' il valore del voto: " +
+                                "se negativo vale -1, altrimenti vale 1.\n\n" +
+                                "comment <postId> \"<contenuto>\" -> aggiunge un commento al post con id 'postId', il cui contenuto" +
+                                " e' 'contenuto'. Tale parametro dev'essere racchiuso tra doppi apici.\n\n" +
+                                "show post <postId> -> mostra in dettaglio il post identificato dall'id <postId>, se esso e'" +
+                                " nel feed o nel blog dell'utente.\n\n" +
+                                "delete <postId> -> elimina il post con id <postId>. Nel caso di rewin si elimina solo il rewin, " +
+                                "altrimenti se il post era originale, si eliminano anche eventuali rewin, commenti e voti.\n\n" +
+                                "rewin <postId> -> effettua il rewin del post con id <postId>. Se si sta cercando di rewinnare " +
+                                "un rewin, l'effetto e' quello di rewinnare il post originale.\n\n" +
+                                "wallet -> visualizza il wallet dell'utente loggato al momento, ovvero il totale di wincoin" +
+                                " nel wallet e la lista delle transazioni indirizzate a quell'utente.\n\n" +
+                                "wallet btc -> converte il totale di wincoin nel wallet dell'utente in bitcoin, generando " +
+                                "un tasso di conversione casuale tramite random.org.\n\n");
                     case "quit":
                         break;
                     default:

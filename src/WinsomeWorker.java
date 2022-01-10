@@ -539,6 +539,13 @@ public class WinsomeWorker implements Runnable {
                 server.getVotes().remove(post);
                 // Rimuovo i commenti
                 server.getComments().remove(post);
+                // Rimuovi i rewin
+                if (server.getRewins().get(post) != null) {
+                    for (Long p : server.getRewins().get(post)) {
+                        server.getPosts().remove(p);
+                    }
+                }
+                server.getRewins().remove(post);
             }
         }
 
